@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="default">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MR HASSAN | Salary Hub</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <meta name="description" content="A standalone, high-fidelity salary tracking application with advanced analytics.">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Fluid Mesh Background -->
+        <div class="mesh-bg">
+            <div class="mesh-ball mesh-1"></div>
+            <div class="mesh-ball mesh-2"></div>
+            <div class="mesh-ball mesh-3"></div>
+        </div>
+
+        <!-- Main Dashboard -->
+        <main class="glass-container">
+            <!-- Sidebar -->
+            <section class="sidebar">
+                <div class="brand">
+                    <div class="logo-icon">
+                        <i data-lucide="terminal"></i>
+                    </div>
+                    <h1>SALARY HUB</h1>
+                </div>
+
+                <div class="hacker-status" id="hacker-status">
+                    <div class="status-header">
+                        <span class="status-label">HUB STATUS</span>
+                        <div id="cloud-sync-indicator" class="cloud-indicator outline" title="Cloud Sync Active">
+                            <i data-lucide="cloud"></i>
+                        </div>
+                    </div>
+                    <span class="status-rank" id="status-rank">UNINITIALIZED</span>
+                    <div class="status-bar"><div id="status-fill" class="status-fill"></div></div>
+                </div>
+                
+                <nav class="nav-menu">
+                    <a href="#" class="nav-item active" onclick="showView('dashboard')">
+                        <i data-lucide="banknote"></i>
+                        <span>Dashboard</span>
+                    </a>
+                    <a href="#" class="nav-item" onclick="openSecurityModal()">
+                        <i data-lucide="shield-check"></i>
+                        <span>Security</span>
+                    </a>
+                    <a href="#" class="nav-item" onclick="openAuditLog()">
+                        <i data-lucide="scroll-text"></i>
+                        <span>Activity Log</span>
+                    </a>
+                    <div class="nav-divider"></div>
+                    <a href="#" class="nav-item" onclick="backupData()">
+                        <i data-lucide="archive"></i>
+                        <span>Backup Data</span>
+                    </a>
+                    <a href="#" class="nav-item" onclick="document.getElementById('import-json').click()">
+                        <i data-lucide="refresh-cw"></i>
+                        <span>Restore Data</span>
+                        <input type="file" id="import-json" accept=".json" style="display: none;" onchange="restoreData(event)">
+                    </a>
+                </nav>
+
+                <div class="user-profile">
+                    <div class="avatar">
+                        <img src="https://api.dicebear.com/7.x/bottts/svg?seed=Hassan" alt="User" id="user-avatar">
+                    </div>
+                    <div class="user-info">
+                        <p class="user-name">Welcome back</p>
+                        <p class="user-handle" id="user-handle" title="Click to change name" contenteditable="true">Mr Hassan</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Main Content Area -->
+            <section class="main-content">
+                <header class="content-header">
+                    <div>
+                        <h2 id="view-title">Salary Dashboard</h2>
+                        <p id="current-date">Sunday, 12 April 2026</p>
+                    </div>
+                    <div class="header-actions">
+                        <div class="global-filters">
+                            <select id="sal-year-filter" class="filter-select">
+                                <option value="all">All Years</option>
+                            </select>
+                            <select id="sal-month-filter" class="filter-select">
+                                <option value="all">All Months</option>
+                                <option value="Jan">Jan</option>
+                                <option value="Feb">Feb</option>
+                                <option value="Mar">Mar</option>
+                                <option value="Apr">Apr</option>
+                                <option value="May">May</option>
+                                <option value="Jun">Jun</option>
+                                <option value="Jul">Jul</option>
+                                <option value="Aug">Aug</option>
+                                <option value="Sep">Sep</option>
+                                <option value="Oct">Oct</option>
+                                <option value="Nov">Nov</option>
+                                <option value="Dec">Dec</option>
+                            </select>
+                        </div>
+                        <div class="theme-switcher">
+                            <button class="theme-btn active" data-theme="default" title="Default Neon"><i data-lucide="zap"></i></button>
+                            <button class="theme-btn" data-theme="matrix" title="Matrix Mode"><i data-lucide="binary"></i></button>
+                            <button class="theme-btn" data-theme="ghost" title="Ghost Shell"><i data-lucide="ghost"></i></button>
+                        </div>
+                        <div class="action-buttons">
+                            <button id="add-fund-btn" class="secondary-btn" style="border-color: var(--warning); color: var(--warning);">
+                                <i data-lucide="plus-square"></i>
+                                <span>Add Extra Fund</span>
+                            </button>
+                            <button id="yearly-summary-btn" class="secondary-btn" onclick="openYearlySummary()">
+                                <i data-lucide="bar-chart-3"></i>
+                                <span>Yearly Summary</span>
+                            </button>
+                            <button id="add-salary-btn" class="primary-btn view-btn">
+                                <i data-lucide="plus-circle"></i>
+                                <span>Add Salary Record</span>
+                            </button>
+                        </div>
+                    </div>
+                </header>
+
+                <div id="salary-view" class="app-view">
+                    <!-- Dashboard Tabs -->
+                    <div class="dashboard-tabs">
+                        <button class="dash-tab active" data-tab="analytics" onclick="switchDashboardTab('analytics')">
+                            <i data-lucide="line-chart"></i>
+                            <span>Performance Analytics</span>
+                        </button>
+                        <button class="dash-tab" data-tab="records" onclick="switchDashboardTab('records')">
+                            <i data-lucide="table"></i>
+                            <span>Monthly Records</span>
+                        </button>
+                        <button class="dash-tab" data-tab="funds" onclick="switchDashboardTab('funds')">
+                            <i data-lucide="award"></i>
+                            <span>Extra Funds Log</span>
+                        </button>
+                    </div>
+
+                    <div id="tab-analytics" class="tab-pane active">
+                        <div class="salary-grid">
+                        <!-- Salary Summary Cards -->
+                        <div class="stats-grid">
+                            <div class="stat-card salary-main">
+                                <div class="stat-icon"><i data-lucide="wallet"></i></div>
+                                <div class="stat-info">
+                                    <span class="stat-label">Total Net Paid</span>
+                                    <h3 id="salary-total-net">Rs.0</h3>
+                                    <div class="stat-breakdown">
+                                        <span title="Base Salary">Base: <b id="breakdown-base">0</b></span>
+                                        <span title="Overtime Pay">OT: <b id="breakdown-ot">0</b></span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="stat-card salary-deductions">
+                                <div class="stat-icon"><i data-lucide="scissors"></i></div>
+                                <div class="stat-info">
+                                    <span class="stat-label">Total Deductions</span>
+                                    <h3 id="salary-total-ded" class="text-danger">Rs.0</h3>
+                                    <div class="stat-breakdown multi-col">
+                                        <span title="Provident Fund">PF: <b id="breakdown-pf">0</b></span>
+                                        <span title="EOBI Contribution">EOBI: <b id="breakdown-eobi">0</b></span>
+                                        <span title="Income Tax">Tax: <b id="breakdown-tax">0</b></span>
+                                        <span title="Short Time">ST: <b id="breakdown-st">0</b></span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="stat-card salary-avg">
+                                <div class="stat-icon"><i data-lucide="trending-up"></i></div>
+                                <div class="stat-info">
+                                    <span class="stat-label">Avg Monthly Net</span>
+                                    <h3 id="salary-avg-net">Rs.0</h3>
+                                    <div class="stat-breakdown">
+                                        <span title="Average Overtime">Avg OT: <b id="breakdown-avg-ot">0</b></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Salary Charts Row -->
+                        <div class="charts-row">
+                            <!-- Salary Trend Chart -->
+                            <div class="chart-section glass-card">
+                                <div class="card-header">
+                                    <h3>Earning vs Deductions Trend</h3>
+                                </div>
+                                <div class="chart-wrapper">
+                                    <canvas id="salary-chart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div> <!-- End Tab Analytics -->
+
+                    <div id="tab-records" class="tab-pane">
+                        <!-- Detailed Table -->
+                        <div class="table-section glass-card">
+                            <div class="salary-header">
+                                <h3>Salary Breakdown</h3>
+                                <div class="salary-toolbar">
+                                    <div class="toolbar-group">
+                                        <input type="file" id="import-salary-csv" accept=".csv" style="display: none;">
+                                        <button class="action-btn" title="Upload" onclick="document.getElementById('import-salary-csv').click()">
+                                            <i data-lucide="upload"></i>
+                                            <span>Upload</span>
+                                        </button>
+                                        <button class="action-btn" id="export-salary-csv" title="Export">
+                                            <i data-lucide="download"></i>
+                                            <span>Export</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="salary-table-wrapper">
+                                <table id="salary-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Month</th>
+                                            <th>Salary</th>
+                                            <th>Total/Work Days</th>
+                                            <th>Short/Over Time</th>
+                                            <th>PF/EOBI</th>
+                                            <th>Income Tax</th>
+                                            <th>Deductions</th>
+                                            <th>Gross Salary</th>
+                                            <th>Net Payable</th>
+                                            <th>Remarks</th>
+                                            <th>Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="salary-table-body">
+                                        <!-- Data injected by JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div> <!-- End Tab Records -->
+
+                    <div id="tab-funds" class="tab-pane">
+                        <!-- Extra Funds Section -->
+                        <div id="extra-funds-section" class="salary-table-container glass-card" style="margin-top: 0;">
+                            <div class="card-header">
+                                <div class="header-main">
+                                    <i data-lucide="award"></i>
+                                    <div>
+                                        <h3>Extra Funds & Windfalls Log</h3>
+                                        <p>Yearly bonuses, WPPF, and PF withdrawals</p>
+                                    </div>
+                                </div>
+                                <div class="header-actions">
+                                    <button class="action-btn" id="export-funds-only-csv" title="Export Funds Only">
+                                        <i data-lucide="download"></i>
+                                        <span>Export CSV</span>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="table-wrapper">
+                                <table class="compact-table" style="width: 100%;">
+                                    <thead>
+                                        <tr>
+                                            <th>Month</th>
+                                            <th>Type</th>
+                                            <th>Amount</th>
+                                            <th>Remarks</th>
+                                            <th>Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="extra-funds-body">
+                                        <!-- Data injected by JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div> <!-- End Tab Funds -->
+                </div>
+            </section>
+        </main>
+
+        <!-- New Salary Modal -->
+        <div id="salary-modal" class="modal-overlay">
+            <div class="modal-content glass-card" style="max-width: 600px;">
+                <div class="modal-header">
+                    <h3>Add Salary Record</h3>
+                    <button class="close-btn" id="close-salary-modal">
+                        <i data-lucide="x"></i>
+                    </button>
+                </div>
+                <form id="salary-form" class="transaction-form" autocomplete="off">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="sal-month">Month (e.g. Apr-25)</label>
+                            <input type="text" id="sal-month" placeholder="Apr-25" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="sal-base">Base Salary</label>
+                            <input type="number" id="sal-base" placeholder="0" required>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="sal-tot-days">Month Days</label>
+                            <input type="number" id="sal-tot-days" value="26" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="sal-absent">Absent Days</label>
+                            <input type="number" id="sal-absent" value="0" required>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="sal-st">Short Time (Hrs)</label>
+                            <input type="number" step="0.5" id="sal-st" value="0">
+                            <div class="input-info">Amt: <input type="number" id="sal-st-amount" readonly class="mini-input"></div>
+                        </div>
+                        <div class="form-group">
+                            <label for="sal-ot">Over Time (Hrs)</label>
+                            <input type="number" step="0.5" id="sal-ot" value="0">
+                            <div class="input-info">Amt: <input type="number" id="sal-ot-amount" readonly class="mini-input"></div>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <div class="label-with-action">
+                                <label for="sal-pf">PF Deduction</label>
+                                <label class="toggle-manual" title="Toggle Manual Override">
+                                    <input type="checkbox" id="pf-manual">
+                                    <i data-lucide="lock" class="lock-icon"></i>
+                                </label>
+                            </div>
+                            <input type="number" id="sal-pf" value="0" readonly>
+                        </div>
+                        <div class="form-group">
+                            <div class="label-with-action">
+                                <label for="sal-eobi">EOBI Deduction</label>
+                                <label class="toggle-manual" title="Toggle Manual Override">
+                                    <input type="checkbox" id="eobi-manual">
+                                    <i data-lucide="lock" class="lock-icon"></i>
+                                </label>
+                            </div>
+                            <input type="number" id="sal-eobi" value="0" readonly>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <div class="label-with-action">
+                                <label for="sal-tax">Income Tax</label>
+                                <label class="toggle-manual" title="Toggle Manual Override">
+                                    <input type="checkbox" id="tax-manual">
+                                    <i data-lucide="lock" class="lock-icon"></i>
+                                </label>
+                            </div>
+                            <input type="number" id="sal-tax" value="0" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label for="sal-wop">Without Pay</label>
+                            <input type="number" id="sal-wop" value="0">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="sal-bonus">Yearly Bonus</label>
+                            <input type="number" id="sal-bonus" value="0">
+                        </div>
+                        <div class="form-group">
+                            <label for="sal-allowance">Allowances</label>
+                            <input type="number" id="sal-allowance" value="0">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="sal-remarks">Remarks</label>
+                        <input type="text" id="sal-remarks" placeholder="Optional notes...">
+                    </div>
+
+                    <button type="submit" class="submit-btn" style="background: var(--success); box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);">
+                        <span>Save Salary Record</span>
+                        <i data-lucide="check-circle"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Audit Log Modal -->
+        <div id="audit-modal" class="modal-overlay">
+            <div class="modal-content glass-card" style="max-width: 700px;">
+                <div class="modal-header">
+                    <div class="header-main">
+                        <i data-lucide="scroll-text" class="text-primary"></i>
+                        <div>
+                            <h3>System Activity Log</h3>
+                            <p>Chronological history of all data modifications</p>
+                        </div>
+                    </div>
+                    <div class="header-actions" style="margin-left: auto; display: flex; gap: 1rem;">
+                        <button class="action-btn" id="export-audit-csv" title="Export Log">
+                            <i data-lucide="download"></i>
+                            <span>Export CSV</span>
+                        </button>
+                        <button class="close-btn" id="close-audit-modal">
+                            <i data-lucide="x"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="audit-log-container">
+                    <table class="audit-table">
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Action</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody id="audit-list">
+                            <!-- Entries injected by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+        <!-- Extra Fund Modal -->
+        <div id="fund-modal" class="modal-overlay">
+            <div class="modal-content glass-card" style="max-width: 500px;">
+                <div class="modal-header">
+                    <h3>Add Extra Fund / Windfall</h3>
+                    <button class="close-btn" id="close-fund-modal">
+                        <i data-lucide="x"></i>
+                    </button>
+                </div>
+                <form id="fund-form" class="transaction-form" autocomplete="off">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="fund-month">Month/Year (e.g. Dec-25)</label>
+                            <input type="text" id="fund-month" placeholder="Dec-25" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="fund-type">Fund Type</label>
+                            <select id="fund-type" required class="filter-select" style="width: 100%; padding: 0.6rem;">
+                                <option value="WPPF">WPPF (Profit Part.)</option>
+                                <option value="PF Withdrawal">PF Withdrawal</option>
+                                <option value="Yearly Bonus">Yearly Bonus</option>
+                                <option value="Other">Other Adjustment</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="fund-amount">Amount</label>
+                        <input type="number" id="fund-amount" placeholder="0" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="fund-remarks">Remarks (Marks)</label>
+                        <input type="text" id="fund-remarks" placeholder="Notes...">
+                    </div>
+                    <button type="submit" class="submit-btn" style="background: var(--warning); box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4);">
+                        <span>Save Fund Record</span>
+                        <i data-lucide="shield-check"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Security Modal (Change PIN) -->
+        <div id="security-modal" class="modal">
+            <div class="modal-content glass-card security-card">
+                <div class="modal-header">
+                    <h3>Vault Security</h3>
+                    <button id="close-security-modal" class="close-btn"><i data-lucide="x"></i></button>
+                </div>
+                <div class="modal-body">
+                    <p class="security-note">Update your 4-digit decryption key.</p>
+                    <form id="security-form">
+                        <div class="form-group">
+                            <label>Current PIN</label>
+                            <input type="password" id="current-pin" maxlength="4" placeholder="••••" required>
+                        </div>
+                        <div class="form-group">
+                            <label>New PIN</label>
+                            <input type="password" id="new-pin" maxlength="4" placeholder="••••" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Confirm New PIN</label>
+                            <input type="password" id="confirm-pin" maxlength="4" placeholder="••••" required>
+                        </div>
+                        <div class="form-group" style="border-top: 1px solid rgba(255,255,255,0.05); padding-top: 1rem; margin-top: 0.5rem;">
+                            <label for="recovery-phrase">Recovery Phrase (Secret)</label>
+                            <input type="text" id="recovery-phrase" placeholder="e.g. My childhood pet name">
+                            <p class="input-info">Used to reset PIN if forgotten. Keep this secret!</p>
+                        </div>
+                        <p id="security-error" class="text-danger" style="font-size: 0.8rem; display: none; margin-bottom: 1rem;"></p>
+                        <button type="submit" class="primary-btn submit-btn" style="background: var(--warning);">
+                            <i data-lucide="shield-alert"></i>
+                            Update Secret Key
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Yearly Summary Modal -->
+        <div id="yearly-summary-modal" class="modal-overlay">
+            <div class="modal-content glass-card" style="max-width: 1150px; width: 95%;">
+                <div class="modal-header">
+                    <h3>Yearly Tax & Income Summary</h3>
+                    <div class="header-group">
+                        <select id="summary-year-select" class="filter-select" onchange="updateYearlySummary()"></select>
+                        <button class="close-btn" onclick="closeYearlySummary()">
+                            <i data-lucide="x"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="modal-body">
+                    <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr); gap: 1rem;">
+                        <!-- Earnings Master Card -->
+                        <div class="stat-card" style="padding: 1.25rem;">
+                            <div class="stat-icon" style="background: var(--primary-glow);"><i data-lucide="wallet"></i></div>
+                            <div class="stat-info">
+                                <span class="stat-label">Total Annual Gross</span>
+                                <h3 id="year-total-gross">Rs.0</h3>
+                                <div class="stat-breakdown">
+                                    <span title="Base Salary">Base: <b id="year-breakdown-base">0</b></span>
+                                    <span title="Overtime & Bonuses">OT/Extras: <b id="year-breakdown-extras">0</b></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Deductions Master Card -->
+                        <div class="stat-card">
+                            <div class="stat-icon" style="background: rgba(239, 68, 68, 0.2); color: var(--danger);"><i data-lucide="scissors"></i></div>
+                            <div class="stat-info">
+                                <span class="stat-label">Total Deductions</span>
+                                <h3 id="year-total-ded" class="text-danger">Rs.0</h3>
+                                <div class="stat-breakdown multi-col" style="grid-template-columns: 1fr 1fr; gap: 0.2rem 0.8rem;">
+                                    <span title="Provident Fund">PF: <b id="year-breakdown-pf">0</b></span>
+                                    <span title="EOBI Contribution">EOBI: <b id="year-breakdown-eobi">0</b></span>
+                                    <span title="Income Tax">Tax: <b id="year-breakdown-tax">0</b></span>
+                                    <span title="Short Time / WOP">ST: <b id="year-breakdown-st">0</b></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Performance Master Card -->
+                        <div class="stat-card">
+                            <div class="stat-icon" style="background: rgba(16, 185, 129, 0.2); color: var(--success);"><i data-lucide="trending-up"></i></div>
+                            <div class="stat-info">
+                                <span class="stat-label">Total Annual Net Paid</span>
+                                <h3 id="year-total-net" class="text-success">Rs.0</h3>
+                                <div class="stat-breakdown multi-col" style="grid-template-columns: 1fr 1fr; gap: 0.2rem 0.8rem;">
+                                    <span title="Average Monthly Net">Avg Net: <b id="year-breakdown-avg">0</b></span>
+                                    <span title="Annual Savings (PF+EOBI)">Savings: <b id="year-breakdown-savings">0</b></span>
+                                    <span title="Yearly Funds (WPPF + PF WD)" style="grid-column: span 2;">Windfalls: <b id="year-breakdown-windfall">0</b></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="table-section" style="margin-top: 2rem; overflow-x: auto;">
+                        <table id="yearly-summary-table" class="compact-table">
+                            <thead>
+                                <tr>
+                                    <th>Month</th>
+                                    <th>Base</th>
+                                    <th>OT/Bonus</th>
+                                    <th>PF</th>
+                                    <th>EOBI</th>
+                                    <th>ST/WOP</th>
+                                    <th>WPPF</th>
+                                    <th>PF WD</th>
+                                    <th>TAX</th>
+                                    <th>NET PAYABLE</th>
+                                </tr>
+                            </thead>
+                            <tbody id="yearly-summary-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Recovery Modal -->
+        <div id="recovery-modal" class="modal-overlay">
+            <div class="modal-content glass-card" style="max-width: 450px;">
+                <div class="modal-header">
+                    <div class="header-main">
+                        <i data-lucide="key" class="text-warning"></i>
+                        <div>
+                            <h3 id="recovery-title">Identity Verification</h3>
+                            <p id="recovery-subtitle">Enter recovery phrase to reset PIN</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-body" style="padding-top: 1rem;">
+                    <div class="form-group">
+                        <input type="text" id="recovery-answer" placeholder="Your secret phrase..." style="width: 100%; padding: 1rem; margin-bottom: 1rem;">
+                    </div>
+                    <div id="new-pin-section" style="display: none;">
+                        <div class="form-group">
+                            <label>New 4-Digit PIN</label>
+                            <input type="password" id="recovery-new-pin" maxlength="4" placeholder="••••" style="width: 100%; padding: 1rem;">
+                        </div>
+                    </div>
+                    <div id="recovery-error" class="text-danger" style="display: none; font-size: 0.8rem; margin-bottom: 1rem;"></div>
+                    <div class="modal-actions" style="display: flex; gap: 1rem;">
+                        <button class="secondary-btn" id="cancel-recovery" style="flex: 1;">Cancel</button>
+                        <button class="primary-btn" id="submit-recovery" style="flex: 2; background: var(--warning);">Verify & Reset</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="vault-lock" class="vault-overlay">
+            <div class="vault-content glass-card">
+                <div class="scan-line"></div>
+                <div class="vault-header">
+                    <i data-lucide="shield-alert" class="text-danger"></i>
+                    <h2>SALARY SECURE</h2>
+                    <p>Enter decryption key to proceed</p>
+                </div>
+                <div id="pin-display" class="pin-display">
+                    <!-- Dynamic dots added by JS (Supports 4-16) -->
+                    <span class="dot"></span>
+                    <span class="dot"></span>
+                    <span class="dot"></span>
+                    <span class="dot"></span>
+                </div>
+                <div class="recovery-trigger" style="text-align: center; margin-bottom: 2rem;">
+                    <a href="#" onclick="openForgotPinFlow()" style="color: var(--warning); font-size: 0.8rem; text-decoration: none; opacity: 0.7; transition: opacity 0.3s;">
+                        Forgot decryption key?
+                    </a>
+                </div>
+                <div class="pin-grid">
+                    <button class="pin-btn">1</button>
+                    <button class="pin-btn">2</button>
+                    <button class="pin-btn">3</button>
+                    <button class="pin-btn">4</button>
+                    <button class="pin-btn">5</button>
+                    <button class="pin-btn">6</button>
+                    <button class="pin-btn">7</button>
+                    <button class="pin-btn">8</button>
+                    <button class="pin-btn">9</button>
+                    <button class="pin-btn text-danger" id="clear-pin">C</button>
+                    <button class="pin-btn">0</button>
+                    <button class="pin-btn text-success" id="enter-pin"><i data-lucide="unlock"></i></button>
+                </div>
+                <p id="vault-msg" class="vault-msg">Unauthorized access attempt will be logged.</p>
+            </div>
+        </div>
+
+        <!-- Notification System -->
+        <div id="notification-container"></div>
+
+        <!-- Hidden Salary Slip Template for Printing -->
+        <div id="salary-slip-template" class="print-only">
+            <div class="slip-header">
+                <h2>SALARY SLIP</h2>
+                <div class="hacker-seal">SECURE RELEASE v2.0</div>
+            </div>
+            <div class="slip-grid">
+                <div class="slip-section">
+                    <label>Employee Name</label>
+                    <p id="slip-name"></p>
+                </div>
+                <div class="slip-section">
+                    <label>Month</label>
+                    <p id="slip-month"></p>
+                </div>
+                <div class="slip-section">
+                    <label>Base Salary</label>
+                    <p id="slip-base"></p>
+                </div>
+                <div class="slip-section">
+                    <label>Gross Salary</label>
+                    <p id="slip-gross"></p>
+                </div>
+                <div class="slip-section">
+                    <label>Deductions</label>
+                    <p id="slip-deductions" class="text-danger"></p>
+                </div>
+                <div class="slip-section highlight">
+                    <label>Net Payable</label>
+                    <p id="slip-net"></p>
+                </div>
+            </div>
+            <div class="slip-footer">
+                <p>Generated by Salary Hub | System Decryption Successful</p>
+                <div class="barcode">|| |||| || ||||| |||</div>
+            </div>
+        </div>
+
+        <!-- Scripts at the very end -->
+        <script src="script.js"></script>
+        <script>
+            lucide.createIcons();
+        </script>
+    </body>
+</html>
