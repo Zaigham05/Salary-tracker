@@ -206,7 +206,7 @@ userHandleEl.addEventListener('keydown', (e) => {
 
 // Initialize App
 function init() {
-    applyStoredTheme();
+    initTheme();
     initIdentity();
     if (isLocked) {
         vaultOverlay.style.display = 'flex';
@@ -215,7 +215,6 @@ function init() {
         renderSalaryView();
         checkAndSyncData(); // Push any leftovers to cloud
     }
-    updateHackerStatus();
 }
 
 // Salary Rendering & Logic
@@ -1129,8 +1128,7 @@ window.onclick = function(event) {
     if (event.target == yearlySummaryModal) yearlySummaryModal.style.display = "none";
 }
 
-// Initial Call
-init();
+// Initial Call is handled by DOMContentLoaded at the end of the file
 
 // Auto-Calculation Engine
 function autoCalculateSalary() {
@@ -1396,13 +1394,9 @@ salMonthSelect.addEventListener('change', (e) => { salMonthFilter = e.target.val
 
 // Final Initialization
 document.addEventListener('DOMContentLoaded', () => {
-    initCloud();
-    initIdentity();
-    initTheme();
-    setupFilters();
-    checkAndSyncData();
-    initKeypad();
-    lucide.createIcons();
+    init(); // Initial UI states
+    initCloud(); // Connect to Supabase
+    initKeypad(); // Attach keypad listeners
 });
 
 function initKeypad() {
