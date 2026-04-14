@@ -94,7 +94,7 @@ function mapToSql(record) {
     const mapping = {
         baseSalary: 'base_salary',
         totalDays: 'total_days',
-        working_days: 'working_days',
+        workingDays: 'working_days',
         shortTimeAmount: 'short_time_amount',
         overTimeAmount: 'over_time_amount',
         pfDeduction: 'pf_deduction',
@@ -110,7 +110,8 @@ function mapToSql(record) {
     for (const [jsKey, sqlKey] of Object.entries(mapping)) {
         if (record[jsKey] !== undefined) {
             sqlRec[sqlKey] = record[jsKey];
-            delete sqlRec[jsKey];
+            // Only delete if the names are actually different
+            if (jsKey !== sqlKey) delete sqlRec[jsKey];
         }
     }
     return sqlRec;
@@ -136,7 +137,7 @@ function mapFromSql(sqlRec) {
     for (const [sqlKey, jsKey] of Object.entries(mapping)) {
         if (sqlRec[sqlKey] !== undefined) {
             record[jsKey] = sqlRec[sqlKey];
-            delete record[sqlKey];
+            if (sqlKey !== jsKey) delete record[sqlKey];
         }
     }
     return record;
@@ -177,9 +178,9 @@ async function checkAndSyncData() {
             const { data: { user } } = await sb.auth.getUser();
             const uid = user ? user.id : null;
             
-            if (localSals.length > 0) await sb.from('salary_records').insert(localSals.map(r => mapToSql({ ...r, user_id: uid })));
-            if (localFunds.length > 0) await sb.from('adjustment_records').insert(localFunds.map(a => ({ ...a, user_id: uid })));
-            if (auditLog.length > 0) await sb.from('audit_log').insert(auditLog.map(l => ({ ...l, user_id: uid })));
+            if (localSals.length > 0) await sb.from('salary_records').insert(localSals.map(r => mapToSql(r)));
+            if (localFunds.length > 0) await sb.from('adjustment_records').insert(localFunds);
+            if (auditLog.length > 0) await sb.from('audit_log').insert(auditLog);
             
             localStorage.setItem('hasSyncedToCloud', 'true');
             localStorage.removeItem('salaryRecords');
