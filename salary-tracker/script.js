@@ -59,12 +59,9 @@ const addSalaryBtn = document.getElementById('add-salary-btn');
 const salYearSelect = document.getElementById('sal-year-filter');
 const salMonthSelect = document.getElementById('sal-month-filter');
 
-// Elite DOM
-const vaultOverlay = document.getElementById('vault-lock');
-const pinDots = document.querySelectorAll('.dot');
-const pinBtns = document.querySelectorAll('.pin-btn');
-const statusRank = document.getElementById('status-rank');
+const statusText = document.getElementById('cloud-status-text');
 const statusFill = document.getElementById('status-fill');
+const pinDisplay = document.getElementById('pin-display');
 
 // Set Current Date
 const options = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
@@ -1397,36 +1394,51 @@ document.getElementById('import-salary-csv').addEventListener('change', function
 salYearSelect.addEventListener('change', (e) => { salYearFilter = e.target.value; renderSalaryView(); });
 salMonthSelect.addEventListener('change', (e) => { salMonthFilter = e.target.value; renderSalaryView(); });
 
-// Vault & Theme Logic
-const pinDisplay = document.getElementById('pin-display');
-
-pinBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-        const val = btn.textContent.trim();
-        if (btn.id === 'clear-pin' || val === 'C') { 
-            currentPIN = ''; 
-            updatePINDots(); 
-            document.getElementById('vault-msg').innerText = "Enter decryption key to proceed";
-            return; 
-        }
-        if (btn.id === 'enter-pin') {
-            if (currentPIN.length >= 4) {
-                if (currentPIN === vaultPIN) unlockVault();
-                else loginFailure();
-            } else {
-                document.getElementById('vault-msg').innerText = "PIN MUST BE 4+ DIGITS";
-            }
-            return;
-        }
-        // Support up to 16 digits
-        if (/^\d$/.test(val) && currentPIN.length < 16) { 
-            currentPIN += val; 
-            updatePINDots(); 
-        }
-    });
+// Final Initialization
+document.addEventListener('DOMContentLoaded', () => {
+    initCloud();
+    initIdentity();
+    initTheme();
+    setupFilters();
+    checkAndSyncData();
+    initKeypad();
+    lucide.createIcons();
 });
 
+function initKeypad() {
+    const pinBtns = document.querySelectorAll('.pin-btn');
+    if (!pinBtns) return;
+
+    pinBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const val = btn.textContent.trim();
+            if (btn.id === 'clear-pin' || val === 'C') { 
+                currentPIN = ''; 
+                updatePINDots(); 
+                document.getElementById('vault-msg').innerText = "Enter decryption key to proceed";
+                return; 
+            }
+            if (btn.id === 'enter-pin') {
+                if (currentPIN.length >= 4) {
+                    if (currentPIN === vaultPIN) unlockVault();
+                    else loginFailure();
+                } else {
+                    document.getElementById('vault-msg').innerText = "PIN MUST BE 4+ DIGITS";
+                }
+                return;
+            }
+            if (/^\d$/.test(val) && currentPIN.length < 16) { 
+                currentPIN += val; 
+                updatePINDots(); 
+            }
+        });
+    });
+    updatePINDots();
+}
+
 function updatePINDots() {
+    const pinDisplay = document.getElementById('pin-display');
+    if (!pinDisplay) return;
     pinDisplay.innerHTML = '';
     for (let i = 0; i < currentPIN.length; i++) {
         const dot = document.createElement('span');
