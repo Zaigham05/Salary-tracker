@@ -296,28 +296,33 @@ function renderSalaryTable() {
     const filtered = getFilteredSalaryRecords();
     const sorted = [...filtered].sort((a, b) => new Date(a.date) - new Date(b.date));
 
-    sorted.forEach(rec => {
+    sorted.forEach(item => {
         const tr = document.createElement('tr');
+        
+        // Ensure month is MMM-YY
+        const dateParts = item.month.split('-');
+        const formattedMonth = dateParts.length === 2 ? `${dateParts[0]}-${dateParts[1].slice(-2)}` : item.month;
+
         tr.innerHTML = `
-            <td>${rec.month}</td>
-            <td>${rec.baseSalary.toLocaleString()}</td>
-            <td>${rec.totalDays} / ${rec.workingDays}</td>
-            <td>${rec.shortTimeAmount} / ${rec.overTimeAmount}</td>
-            <td>${rec.pfDeduction} / ${rec.eobiDeduction}</td>
-            <td>${rec.incomeTax || '-'}</td>
-            <td class="text-danger">${rec.overAllDeduction.toLocaleString()}</td>
-            <td class="text-success">${rec.grossSalary.toLocaleString()}</td>
-            <td style="font-weight: bold;">${rec.netPayable.toLocaleString()}</td>
-            <td><div class="remark-text">${rec.remarks || ''}</div></td>
+            <td class="sticky-col" style="font-weight: 600; color: var(--primary);">${formattedMonth}</td>
+            <td>${CURRENCY}${item.baseSalary.toLocaleString()}</td>
+            <td>${item.totalDays}/${item.workingDays}</td>
+            <td>${CURRENCY}${(item.shortTimeAmount || 0).toLocaleString()} / ${CURRENCY}${(item.overTimeAmount || 0).toLocaleString()}</td>
+            <td>${CURRENCY}${(item.pfDeduction + item.eobiDeduction).toLocaleString()}</td>
+            <td>${CURRENCY}${(item.incomeTax || 0).toLocaleString()}</td>
+            <td class="text-danger">${CURRENCY}${((item.otherDeductions || 0) + (item.withoutPay || 0)).toLocaleString()}</td>
+            <td>${CURRENCY}${item.grossSalary.toLocaleString()}</td>
+            <td class="text-success" style="font-weight: 700;">${CURRENCY}${item.netPayable.toLocaleString()}</td>
+            <td class="compact-cell" title="${item.remarks || ''}">${item.remarks || '-'}</td>
             <td class="action-td">
-                ${isWithinEditWindow(rec.month) ? `
-                <button class="icon-btn" onclick="editSalaryRecord('${rec.id}')" title="Edit Record">
+                ${isWithinEditWindow(item.month) ? `
+                <button class="icon-btn" onclick="editSalaryRecord('${item.id}')" title="Edit Record">
                     <i data-lucide="edit-3"></i>
                 </button>` : ''}
-                <button class="icon-btn" onclick="printSalarySlip('${rec.id}')" title="Print Slip">
+                <button class="icon-btn" onclick="printSalarySlip('${item.id}')" title="Print Slip">
                     <i data-lucide="printer"></i>
                 </button>
-                <button class="icon-btn delete-btn" onclick="deleteSalaryRecord('${rec.id}')" title="Delete">
+                <button class="icon-btn delete-btn" onclick="deleteSalaryRecord('${item.id}')" title="Delete">
                     <i data-lucide="trash-2"></i>
                 </button>
             </td>
@@ -437,7 +442,7 @@ function editSalaryRecord(id) {
     document.getElementById('sal-eobi').value = rec.eobiDeduction;
     document.getElementById('sal-tax').value = rec.incomeTax || 0;
     document.getElementById('sal-wop').value = rec.withoutPay || 0;
-    document.getElementById('sal-bonus').value = rec.bonus || 0;
+    document.getElementById('sal-other-ded').value = rec.otherDeductions || 0;
     document.getElementById('sal-allowance').value = rec.allowance || 0;
     document.getElementById('sal-remarks').value = rec.remarks || '';
 
@@ -607,11 +612,11 @@ salaryForm.addEventListener('submit', async (e) => {
     const incomeTax = +document.getElementById('sal-tax').value || 0;
     const withoutPay = +document.getElementById('sal-wop').value || 0;
     const remarks = document.getElementById('sal-remarks').value;
-    const bonus = +document.getElementById('sal-bonus').value || 0;
+    const otherDeductions = +document.getElementById('sal-other-ded').value || 0;
     const allowance = +document.getElementById('sal-allowance').value || 0;
 
-    const grossSalary = baseSalary + overTimeAmount + bonus + allowance;
-    const overAllDeduction = pfDeduction + eobiDeduction + incomeTax + shortTimeAmount + withoutPay;
+    const grossSalary = baseSalary + overTimeAmount + allowance;
+    const overAllDeduction = pfDeduction + eobiDeduction + incomeTax + shortTimeAmount + withoutPay + otherDeductions;
     const netPayable = grossSalary - overAllDeduction;
 
     const newRec = { 
@@ -623,7 +628,7 @@ salaryForm.addEventListener('submit', async (e) => {
         workingDays, 
         shortTimeAmount, 
         overTimeAmount, 
-        bonus,
+        otherDeductions,
         allowance,
         pfDeduction, 
         eobiDeduction, 
@@ -1001,7 +1006,7 @@ function updateYearlySummary() {
             month: m,
             base: salRec ? salRec.baseSalary : 0,
             ot: salRec ? (salRec.overTimeAmount || 0) : 0,
-            bonus: (salRec ? (salRec.bonus || 0) : 0) + adjs.filter(a => a.type === 'Yearly Bonus').reduce((sum, a) => sum + a.amount, 0),
+            otherDed: salRec ? (salRec.otherDeductions || 0) : 0,
             allowance: (salRec ? (salRec.allowance || 0) : 0) + adjs.filter(a => a.type === 'Other').reduce((sum, a) => sum + a.amount, 0),
             pf: salRec ? salRec.pfDeduction : 0,
             eobi: salRec ? salRec.eobiDeduction : 0,
@@ -1017,10 +1022,10 @@ function updateYearlySummary() {
     });
 
     // Aggregate Master Totals
-    const totalGross = monthlySummaries.reduce((acc, r) => acc + r.base + r.ot + r.bonus + r.allowance + r.wppf, 0);
+    const totalGross = monthlySummaries.reduce((acc, r) => acc + r.base + r.ot + r.allowance + r.wppf, 0);
     const totalTax = monthlySummaries.reduce((acc, d) => acc + d.tax, 0);
     const totalNet = monthlySummaries.reduce((acc, r) => acc + r.net, 0);
-    const totalDeductions = monthlySummaries.reduce((acc, r) => acc + r.pf + r.eobi + r.stWop + r.tax, 0);
+    const totalDeductions = monthlySummaries.reduce((acc, r) => acc + r.pf + r.eobi + r.stWop + r.tax + r.otherDed, 0);
     
     const totalPF = monthlySummaries.reduce((acc, r) => acc + r.pf, 0);
     const totalEOBI = monthlySummaries.reduce((acc, r) => acc + r.eobi, 0);
@@ -1032,7 +1037,7 @@ function updateYearlySummary() {
     // Update Master Cards
     document.getElementById('year-total-gross').innerText = `${CURRENCY}${totalGross.toLocaleString()}`;
     document.getElementById('year-breakdown-base').innerText = monthlySummaries.reduce((acc, r) => acc + r.base, 0).toLocaleString();
-    document.getElementById('year-breakdown-extras').innerText = monthlySummaries.reduce((acc, r) => acc + r.ot + r.bonus + r.allowance, 0).toLocaleString();
+    document.getElementById('year-breakdown-extras').innerText = monthlySummaries.reduce((acc, r) => acc + r.ot + r.allowance, 0).toLocaleString();
 
     document.getElementById('year-total-ded').innerText = `${CURRENCY}${totalDeductions.toLocaleString()}`;
     document.getElementById('year-breakdown-pf').innerText = totalPF.toLocaleString();
@@ -1487,6 +1492,82 @@ function unlockVault() {
 }
 themeBtns.forEach(btn => { btn.addEventListener('click', () => { const t = btn.dataset.theme; document.documentElement.setAttribute('data-theme', t); localStorage.setItem('theme', t); themeBtns.forEach(b => b.classList.remove('active')); btn.classList.add('active'); }); });
 function applyStoredTheme() { const t = localStorage.getItem('theme') || 'default'; document.documentElement.setAttribute('data-theme', t); themeBtns.forEach(b => { if (b.dataset.theme === t) b.classList.add('active'); else b.classList.remove('active'); }); }
+
+function printSalarySlip(id) {
+    const rec = salaryRecords.find(r => r.id === id);
+    if (!rec) return;
+
+    const printWindow = window.open('', '_blank', 'width=800,height=900');
+    const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Salary Slip - ${rec.month}</title>
+            <style>
+                body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #333; }
+                .slip-container { border: 2px solid #eee; padding: 30px; border-radius: 10px; max-width: 700px; margin: auto; }
+                .header { text-align: center; border-bottom: 2px solid var(--primary); padding-bottom: 20px; margin-bottom: 30px; }
+                .header h1 { margin: 0; color: #10b981; font-size: 24px; text-transform: uppercase; }
+                .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; }
+                .info-item b { color: #666; font-size: 12px; text-transform: uppercase; display: block; }
+                .data-table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+                .data-table th { text-align: left; padding: 12px; background: #f9fafb; border-bottom: 2px solid #eee; }
+                .data-table td { padding: 12px; border-bottom: 1px solid #eee; }
+                .total-row { background: #f9fafb; font-weight: bold; }
+                .footer { margin-top: 50px; text-align: center; font-size: 12px; color: #999; border-top: 1px solid #eee; padding-top: 20px; }
+                @media print { .no-print { display: none; } }
+            </style>
+        </head>
+        <body>
+            <div class="slip-container">
+                <div class="header">
+                    <h1>MR HASSAN | SALARY HUB</h1>
+                    <p>Official Remuneration Statement</p>
+                </div>
+                
+                <div class="info-grid">
+                    <div class="info-item"><b>Employee Name</b>Mr Hassan</div>
+                    <div class="info-item"><b>Statement Period</b>${rec.month}</div>
+                    <div class="info-item"><b>Designation</b>Senior Executive / Specialist</div>
+                    <div class="info-item"><b>Generation Date</b>${new Date().toLocaleDateString()}</div>
+                </div>
+
+                <table class="data-table">
+                    <thead>
+                        <tr><th>Description</th><th style="text-align: right;">Amount</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Base Salary</td><td style="text-align: right;">${CURRENCY}${rec.baseSalary.toLocaleString()}</td></tr>
+                        <tr><td>Overtime Amount</td><td style="text-align: right;">${CURRENCY}${rec.overTimeAmount.toLocaleString()}</td></tr>
+                        <tr><td>Allowances</td><td style="text-align: right;">${CURRENCY}${rec.allowance.toLocaleString()}</td></tr>
+                        <tr class="total-row"><td>Gross Earnings</td><td style="text-align: right;">${CURRENCY}${rec.grossSalary.toLocaleString()}</td></tr>
+                        
+                        <tr><td>Provident Fund (PF)</td><td style="text-align: right; color: #ef4444;">-${CURRENCY}${rec.pfDeduction.toLocaleString()}</td></tr>
+                        <tr><td>EOBI Contribution</td><td style="text-align: right; color: #ef4444;">-${CURRENCY}${rec.eobiDeduction.toLocaleString()}</td></tr>
+                        <tr><td>Income Tax</td><td style="text-align: right; color: #ef4444;">-${CURRENCY}${rec.incomeTax.toLocaleString()}</td></tr>
+                        <tr><td>ST / Without Pay</td><td style="text-align: right; color: #ef4444;">-${CURRENCY}${(rec.shortTimeAmount + rec.withoutPay).toLocaleString()}</td></tr>
+                        <tr><td>Other Deductions</td><td style="text-align: right; color: #ef4444;">-${CURRENCY}${rec.otherDeductions.toLocaleString()}</td></tr>
+                        <tr class="total-row"><td>Total Deductions</td><td style="text-align: right; color: #ef4444;">-${CURRENCY}${rec.overAllDeduction.toLocaleString()}</td></tr>
+                        
+                        <tr style="background: #10b981; color: white;">
+                            <td style="font-size: 18px; padding: 20px;">NET PAYABLE</td>
+                            <td style="text-align: right; font-size: 18px; padding: 20px;">${CURRENCY}${rec.netPayable.toLocaleString()}</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="footer">
+                    <p>This is a computer-generated document and does not require a physical signature.</p>
+                    <p>© 2026 MR HASSAN SALARY HUB - Confidential</p>
+                </div>
+            </div>
+            <script>window.print();<\/script>
+        </body>
+        </html>
+    `;
+    printWindow.document.write(html);
+    printWindow.document.close();
+}
 
 function updateHackerStatus(totalSalary = 0) {
     let rank = "HUB INTERN";
