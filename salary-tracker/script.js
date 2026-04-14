@@ -1,5 +1,7 @@
+// Cloud Storage Configuration (Google Sheets)
+const GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxCupu05McUU1a3Aizzes3DOM2ryX4A966TlKkC7S2xZ88cu4avAPuN4XEX9huo7hgxUw/exec'; 
+
 // State Management
-let sb = null; // Initialized in initCloud()
 let salaryRecords = [];
 let adjustmentRecords = [];
 let auditLog = [];
@@ -137,58 +139,62 @@ function mapFromSql(sqlRec) {
 }
 
 async function fetchCloudData() {
-    if (!sb) return;
+    if (!GOOGLE_SHEET_URL || GOOGLE_SHEET_URL.includes('PASTE')) return;
     setSyncing(true);
     try {
-        const { data: salaries, error: salErr } = await sb.from('salary_records').select('*').order('created_at', { ascending: false });
-        const { data: adjustments, error: adjErr } = await sb.from('adjustment_records').select('*').order('created_at', { ascending: false });
-        const { data: logs, error: logErr } = await sb.from('audit_log').select('*').order('timestamp', { ascending: false });
-
-        if (!salErr && salaries) salaryRecords = salaries.map(mapFromSql);
-        if (!adjErr && adjustments) adjustmentRecords = adjustments;
-        if (!logErr && logs) auditLog = logs;
+        const response = await fetch(`${GOOGLE_SHEET_URL}?action=fetchAll`);
+        const data = await response.json();
+        
+        if (data.salaries) salaryRecords = data.salaries;
+        if (data.adjustments) adjustmentRecords = data.adjustments;
+        if (data.logs) auditLog = data.logs;
 
         renderSalaryView();
     } catch (err) {
-        console.error('Cloud Fetch Error:', err);
+        console.error('Sheets Fetch Error:', err);
     } finally {
         setSyncing(false);
     }
 }
 
-async function checkAndSyncData() {
-    if (!sb) return;
-    
-    // Automatic Migration Logic
-    const hasSynced = localStorage.getItem('hasSyncedToCloud');
-    const localSals = JSON.parse(localStorage.getItem('salaryRecords')) || [];
-    const localFunds = JSON.parse(localStorage.getItem('adjustmentRecords')) || [];
-    const localLogs = JSON.parse(localStorage.getItem('auditLog')) || [];
+async function syncWithSheets(action, table, data) {
+    if (!GOOGLE_SHEET_URL || GOOGLE_SHEET_URL.includes('PASTE')) return;
+    try {
+        const response = await fetch(GOOGLE_SHEET_URL, {
+            method: 'POST',
+            mode: 'no-cors', // Apps Script requires no-cors for simple posts or careful CORS headers
+            cache: 'no-cache',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action, table, data })
+        });
+        return true;
+    } catch (err) {
+        console.error('Sheets Sync Error:', err);
+        return false;
+    }
+}
 
-    if (!hasSynced && (localSals.length > 0 || localFunds.length > 0)) {
+async function checkAndSyncData() {
+    // Migration logic for first-time setup
+    const hasSynced = localStorage.getItem('hasSyncedToSheets');
+    const localSals = JSON.parse(localStorage.getItem('salaryRecords')) || [];
+    
+    if (!hasSynced && localSals.length > 0) {
         setSyncing(true);
         try {
-            const { data: { user } } = await sb.auth.getUser();
-            const uid = user ? user.id : null;
-            
-            if (localSals.length > 0) await sb.from('salary_records').insert(localSals.map(r => mapToSql(r)));
-            if (localFunds.length > 0) await sb.from('adjustment_records').insert(localFunds);
-            if (auditLog.length > 0) await sb.from('audit_log').insert(auditLog);
-            
-            localStorage.setItem('hasSyncedToCloud', 'true');
-            localStorage.removeItem('salaryRecords');
-            localStorage.removeItem('adjustmentRecords');
-            localStorage.removeItem('auditLog');
-            
-            showNotification('Legacy data synced to Cloud Hub!', 'success');
+            for (const rec of localSals) {
+                await syncWithSheets('saveSalary', 'salary_records', rec);
+            }
+            localStorage.setItem('hasSyncedToSheets', 'true');
+            showNotification('Legacy data migrated to Google Sheets!', 'success');
         } catch (err) {
             console.error('Migration Error:', err);
         } finally {
             setSyncing(false);
-            fetchCloudData(); // Refresh from the truth
+            fetchCloudData();
         }
     } else {
-        fetchCloudData(); // Regular fetch from the source of truth
+        fetchCloudData();
     }
 }
 
@@ -360,11 +366,11 @@ async function deleteSalaryRecord(id) {
         setSyncing(true);
         try {
             salaryRecords = salaryRecords.filter(r => r.id !== id);
-            if (sb) await sb.from('salary_records').delete().eq('id', id);
+            await syncWithSheets('delete', 'salary_records', id);
             localStorage.setItem('salaryRecords', JSON.stringify(salaryRecords));
             logAudit('Delete', id, `Deleted monthly record for ${rec.month}`);
             renderSalaryView();
-            showNotification('Record deleted from cloud', 'success');
+            showNotification('Record deleted from Sheets!', 'success');
         } catch (err) {
             console.error('Delete error:', err);
             showNotification('Failed to delete from cloud', 'error');
@@ -382,11 +388,11 @@ async function deleteExtraFund(id) {
         setSyncing(true);
         try {
             adjustmentRecords = adjustmentRecords.filter(r => r.id !== id);
-            if (sb) await sb.from('adjustment_records').delete().eq('id', id);
+            await syncWithSheets('delete', 'adjustment_records', id);
             localStorage.setItem('adjustmentRecords', JSON.stringify(adjustmentRecords));
             logAudit('Delete Fund', id, `Deleted fund record: ${rec.type} for ${rec.month}`);
             renderSalaryView();
-            showNotification('Fund record deleted', 'success');
+            showNotification('Fund record deleted from Sheets', 'success');
         } catch (err) {
             console.error('Delete error:', err);
             showNotification('Failed to delete from cloud', 'error');
@@ -634,18 +640,12 @@ salaryForm.addEventListener('submit', async (e) => {
         if (isEditing) {
             const index = salaryRecords.findIndex(r => r.id === isEditing);
             salaryRecords[index] = newRec;
-            if (sb) {
-                const { error } = await sb.from('salary_records').update(mapToSql(newRec)).eq('id', isEditing);
-                if (error) throw error;
-            }
+            await syncWithSheets('saveSalary', 'salary_records', newRec);
             logAudit('Edit', isEditing, `Updated record for ${month}. Base: ${baseSalary}`);
             isEditing = null;
         } else {
             salaryRecords.push(newRec);
-            if (sb) {
-                const { error } = await sb.from('salary_records').insert(mapToSql(newRec));
-                if (error) throw error;
-            }
+            await syncWithSheets('saveSalary', 'salary_records', newRec);
             logAudit('Add', newRec.id, `Added record for ${month}. Net: ${netPayable}`);
         }
 
@@ -653,10 +653,10 @@ salaryForm.addEventListener('submit', async (e) => {
         salaryForm.reset();
         salaryModal.style.display = 'none';
         renderSalaryView();
-        showNotification('Record saved to cloud!', 'success');
+        showNotification('Saved to Google Sheets!', 'success');
     } catch (err) {
         console.error('Save Error:', err);
-        showNotification(`Cloud Error: ${err.message || 'Check Connection'}`, 'error');
+        showNotification(`Sheets Error: ${err.message || 'Check Connection'}`, 'error');
     } finally {
         setSyncing(false);
     }
@@ -690,16 +690,13 @@ fundForm.addEventListener('submit', async (e) => {
     setSyncing(true);
     try {
         adjustmentRecords.push(newFund);
-        if (sb) {
-            const { error } = await sb.from('adjustment_records').insert(newFund);
-            if (error) throw error;
-        }
+        await syncWithSheets('saveAdjustment', 'adjustment_records', newFund);
         localStorage.setItem('adjustmentRecords', JSON.stringify(adjustmentRecords));
         logAudit('Add Fund', newFund.id, `Added ${type} for ${month}: ${amount}`);
         fundForm.reset();
         fundModal.style.display = 'none';
         renderSalaryView();
-        showNotification(`${type} record saved to cloud!`, 'success');
+        showNotification(`${type} saved to Google Sheets!`, 'success');
     } catch (err) {
         console.error('Fund Error:', err);
         showNotification(`Cloud Error: ${err.message || 'Check Connection'}`, 'error');
@@ -787,11 +784,7 @@ async function logAudit(action, recordId, details) {
     if (auditLog.length > 100) auditLog.pop();
     
     localStorage.setItem('auditLog', JSON.stringify(auditLog));
-    if (sb) {
-        try {
-            await sb.from('audit_log').insert(entry);
-        } catch (err) { console.error('Log sync error:', err); }
-    }
+    await syncWithSheets('logAudit', 'audit_log', entry);
 }
 
 function openAuditLog() {
@@ -881,40 +874,36 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function initCloud() {
-    // Small delay to ensure CDN scripts are fully parsed by browser
-    await new Promise(res => setTimeout(res, 500)); 
+    // Small delay to ensure everything is ready
+    await new Promise(res => setTimeout(res, 300)); 
     
-    const SUPABASE_URL = 'https://dniknbqcdyxswlylrvav.supabase.co';
-    const SUPABASE_ANON_KEY = 'sb_publishable_w4r1WuBauup_AGOgEmQOJw_2UN_zmRX';
-
     const statusText = document.getElementById('cloud-status-text');
     const statusIndicator = document.getElementById('cloud-sync-indicator');
     const statusFill = document.getElementById('status-fill');
 
-    if (typeof supabase === 'undefined' && typeof window.supabase === 'undefined') {
-        console.error('Supabase library missing.');
-        if (statusText) statusText.innerText = 'CLOUD: ERROR';
+    if (!GOOGLE_SHEET_URL || GOOGLE_SHEET_URL.includes('PASTE')) {
+        if (statusText) statusText.innerText = 'SHEETS: SETUP NEEDED';
         return;
     }
 
-    const lib = window.supabase || supabase;
-
     try {
-        sb = lib.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        // Health Check - Check if we can reach the table
-        const { error } = await sb.from('salary_records').select('id').limit(1);
-        if (error) throw error;
-
-        if (statusText) statusText.innerText = 'CLOUD: ONLINE';
+        const response = await fetch(`${GOOGLE_SHEET_URL}?action=fetchAll`);
+        if (!response.ok) throw new Error('Network error');
+        
+        if (statusText) statusText.innerText = 'SHEETS: ONLINE';
         if (statusIndicator) statusIndicator.classList.add('online');
         if (statusFill) statusFill.style.width = '100.2%'; 
-        console.log('Hassan Hub: Cloud Shield Active ✅');
+        console.log('Hassan Hub: Sheets Link Active 📊✅');
         
-        // Final Fetch
-        fetchCloudData();
+        const data = await response.json();
+        if (data.salaries) salaryRecords = data.salaries;
+        if (data.adjustments) adjustmentRecords = data.adjustments;
+        if (data.logs) auditLog = data.logs;
+        renderSalaryView();
+        
     } catch (err) {
-        console.error('Cloud Connection Failed:', err);
-        if (statusText) statusText.innerText = 'CLOUD: OFFLINE';
+        console.error('Sheets Connection Failed:', err);
+        if (statusText) statusText.innerText = 'SHEETS: OFFLINE';
         if (statusIndicator) statusIndicator.classList.remove('online');
         if (statusFill) statusFill.style.width = '10%';
     }
