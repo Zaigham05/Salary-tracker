@@ -94,7 +94,7 @@ function mapToSql(record) {
     const mapping = {
         baseSalary: 'base_salary',
         totalDays: 'total_days',
-        workingDays: 'working_days',
+        working_days: 'working_days',
         shortTimeAmount: 'short_time_amount',
         overTimeAmount: 'over_time_amount',
         pfDeduction: 'pf_deduction',
@@ -103,7 +103,8 @@ function mapToSql(record) {
         withoutPay: 'without_pay',
         grossSalary: 'gross_salary',
         overAllDeduction: 'overall_deduction',
-        netPayable: 'net_payable'
+        netPayable: 'net_payable',
+        otHrs: 'ot_hrs'
     };
     const sqlRec = { ...record };
     for (const [jsKey, sqlKey] of Object.entries(mapping)) {
@@ -128,7 +129,8 @@ function mapFromSql(sqlRec) {
         without_pay: 'withoutPay',
         gross_salary: 'grossSalary',
         overall_deduction: 'overAllDeduction',
-        net_payable: 'netPayable'
+        net_payable: 'netPayable',
+        ot_hrs: 'otHrs'
     };
     const record = { ...sqlRec };
     for (const [sqlKey, jsKey] of Object.entries(mapping)) {
@@ -639,12 +641,18 @@ salaryForm.addEventListener('submit', async (e) => {
         if (isEditing) {
             const index = salaryRecords.findIndex(r => r.id === isEditing);
             salaryRecords[index] = newRec;
-            if (sb) await sb.from('salary_records').update(mapToSql(newRec)).eq('id', isEditing);
+            if (sb) {
+                const { error } = await sb.from('salary_records').update(mapToSql(newRec)).eq('id', isEditing);
+                if (error) throw error;
+            }
             logAudit('Edit', isEditing, `Updated record for ${month}. Base: ${baseSalary}`);
             isEditing = null;
         } else {
             salaryRecords.push(newRec);
-            if (sb) await sb.from('salary_records').insert(mapToSql(newRec));
+            if (sb) {
+                const { error } = await sb.from('salary_records').insert(mapToSql(newRec));
+                if (error) throw error;
+            }
             logAudit('Add', newRec.id, `Added record for ${month}. Net: ${netPayable}`);
         }
 
@@ -655,7 +663,7 @@ salaryForm.addEventListener('submit', async (e) => {
         showNotification('Record saved to cloud!', 'success');
     } catch (err) {
         console.error('Save Error:', err);
-        showNotification('Failed to save to cloud.', 'error');
+        showNotification(`Cloud Error: ${err.message || 'Check Connection'}`, 'error');
     } finally {
         setSyncing(false);
     }
@@ -689,7 +697,10 @@ fundForm.addEventListener('submit', async (e) => {
     setSyncing(true);
     try {
         adjustmentRecords.push(newFund);
-        if (sb) await sb.from('adjustment_records').insert(newFund);
+        if (sb) {
+            const { error } = await sb.from('adjustment_records').insert(newFund);
+            if (error) throw error;
+        }
         localStorage.setItem('adjustmentRecords', JSON.stringify(adjustmentRecords));
         logAudit('Add Fund', newFund.id, `Added ${type} for ${month}: ${amount}`);
         fundForm.reset();
@@ -698,7 +709,7 @@ fundForm.addEventListener('submit', async (e) => {
         showNotification(`${type} record saved to cloud!`, 'success');
     } catch (err) {
         console.error('Fund Error:', err);
-        showNotification('Failed to save to cloud.', 'error');
+        showNotification(`Cloud Error: ${err.message || 'Check Connection'}`, 'error');
     } finally {
         setSyncing(false);
     }
@@ -866,26 +877,31 @@ document.getElementById('submit-recovery').addEventListener('click', () => {
     }
 });
 
-function showNotification(msg, type = 'success') {
+function showNotification(message, type = 'info') {
     const container = document.getElementById('notification-container');
     const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
+    toast.className = `notification ${type}`;
     
-    const icon = type === 'success' ? 'check-circle' : 'alert-circle';
-    
+    let icon = 'info';
+    if (type === 'success') icon = 'check-circle';
+    if (type === 'error') icon = 'alert-circle';
+    if (type === 'warning') icon = 'alert-triangle';
+
     toast.innerHTML = `
-        <div class="toast-icon"><i data-lucide="${icon}"></i></div>
-        <div class="toast-message">${msg}</div>
+        <i data-lucide="${icon}"></i>
+        <div class="notif-content">
+            <div class="notif-msg">${message}</div>
+        </div>
     `;
     
     container.appendChild(toast);
-    lucide.createIcons(); // Initialize the new icon
+    lucide.createIcons();
     
-    // Auto-dismiss
     setTimeout(() => {
-        toast.classList.add('fade-out');
-        setTimeout(() => toast.remove(), 400);
-    }, 4000);
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(20px)';
+        setTimeout(() => toast.remove(), 300);
+    }, 5000);
 }
 
 function showSecurityError(msg) {
