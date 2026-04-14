@@ -866,15 +866,7 @@ document.getElementById('submit-recovery').addEventListener('click', () => {
     }
 });
 
-// Final Initialization
-document.addEventListener('DOMContentLoaded', () => {
-    initCloud();
-    initIdentity();
-    initTheme();
-    setupFilters();
-    checkAndSyncData();
-    lucide.createIcons();
-});
+// initialization moved to Master Boot Sequence at end of file
 
 async function initCloud() {
     // Small delay to ensure everything is ready
@@ -1385,22 +1377,7 @@ document.getElementById('import-salary-csv').addEventListener('change', function
 salYearSelect.addEventListener('change', (e) => { salYearFilter = e.target.value; renderSalaryView(); });
 salMonthSelect.addEventListener('change', (e) => { salMonthFilter = e.target.value; renderSalaryView(); });
 
-// Final Initialization
-document.addEventListener('DOMContentLoaded', () => {
-    try {
-        init(); // Initial UI states
-    } catch (e) { console.warn('Init error:', e); }
-
-    try {
-        initCloud(); // Connect to Supabase
-    } catch (e) { console.warn('Cloud init error:', e); }
-
-    try {
-        initKeypad(); // Attach keypad listeners
-    } catch (e) { console.warn('Keypad error:', e); }
-
-    lucide.createIcons();
-});
+// initialization moved to Master Boot Sequence at end of file
 
 function initTheme() {
     applyStoredTheme();
@@ -1424,6 +1401,9 @@ function initKeypad() {
     if (!pinBtns) return;
 
     pinBtns.forEach(btn => {
+        // Prevent double-listener attachment
+        if (btn.getAttribute('data-listener-attached')) return;
+        
         btn.addEventListener('click', () => {
             const val = btn.textContent.trim();
             if (btn.id === 'clear-pin' || val === 'C') { 
@@ -1446,6 +1426,8 @@ function initKeypad() {
                 updatePINDots(); 
             }
         });
+        
+        btn.setAttribute('data-listener-attached', 'true');
     });
     updatePINDots();
 }
@@ -1586,23 +1568,33 @@ function updateHackerStatus(totalSalary = 0) {
     if (progress === 100 && statusFill) statusFill.style.boxShadow = '0 0 10px var(--primary)';
 }
 
-// Final Boot Sequence
+// Sovereign Master Boot Sequence
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('Hub: Initialization sequence started...');
+    
+    // 1. Critical UI Setup (Immediate)
     try {
-        // Core Setup
-        init(); 
-        initCloud(); 
+        initKeypad(); 
         initIdentity();
-        initKeypad();
-        
-        // UI Polish
+        initTheme();
+    } catch (e) { console.error('UI Setup Error:', e); }
+
+    // 2. Data & Cloud Setup (Asynchronous)
+    try {
+        init(); // Load local storage
+        initCloud(); // Connect to Sheets
+        setupFilters();
+        if (typeof checkAndSyncData === 'function') checkAndSyncData();
+    } catch (e) { console.error('Data Setup Error:', e); }
+
+    // 3. Polish
+    try {
         if (dateEl) {
             const options = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
             dateEl.innerText = new Date().toLocaleDateString('en-US', options);
         }
-        
         if (window.lucide) lucide.createIcons();
-    } catch (e) {
-        console.error('Boot Error:', e);
-    }
+    } catch (e) { console.error('Polish Error:', e); }
+    
+    console.log('Hub: System Ready.');
 });
