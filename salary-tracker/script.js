@@ -58,6 +58,7 @@ const salAvgNetEl = document.getElementById('salary-avg-net');
 const addSalaryBtn = document.getElementById('add-salary-btn');
 const salYearSelect = document.getElementById('sal-year-filter');
 const salMonthSelect = document.getElementById('sal-month-filter');
+const vaultOverlay = document.getElementById('vault-lock');
 
 const statusText = document.getElementById('cloud-status-text');
 const statusFill = document.getElementById('status-fill');
@@ -1394,10 +1395,37 @@ salMonthSelect.addEventListener('change', (e) => { salMonthFilter = e.target.val
 
 // Final Initialization
 document.addEventListener('DOMContentLoaded', () => {
-    init(); // Initial UI states
-    initCloud(); // Connect to Supabase
-    initKeypad(); // Attach keypad listeners
+    try {
+        init(); // Initial UI states
+    } catch (e) { console.warn('Init error:', e); }
+
+    try {
+        initCloud(); // Connect to Supabase
+    } catch (e) { console.warn('Cloud init error:', e); }
+
+    try {
+        initKeypad(); // Attach keypad listeners
+    } catch (e) { console.warn('Keypad error:', e); }
+
+    lucide.createIcons();
 });
+
+function initTheme() {
+    applyStoredTheme();
+}
+
+function setupFilters() {
+    // Filters are handled by renderSalaryView and change listeners
+}
+
+function applyStoredTheme() {
+    const theme = localStorage.getItem('theme') || 'default';
+    document.documentElement.setAttribute('data-theme', theme);
+    themeBtns.forEach(btn => {
+        if (btn.dataset.theme === theme) btn.classList.add('active');
+        else btn.classList.remove('active');
+    });
+}
 
 function initKeypad() {
     const pinBtns = document.querySelectorAll('.pin-btn');
