@@ -3,6 +3,8 @@ const SUPABASE_URL = 'https://dniknbqcdyxswlylrvav.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_w4r1WuBauup_AGOgEmQOJw_2UN_zmRX';
 // Using 'supabase' global from CDN; renaming instance to 'sb' to avoid conflict
 const sb = (typeof supabase !== 'undefined') ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+if (sb) console.log('Hassan Hub: Cloud Connected ✅');
+else console.warn('Hassan Hub: Cloud Disconnected - Check Library ❌');
 
 // State Management
 let salaryRecords = [];
