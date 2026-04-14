@@ -1,12 +1,5 @@
-// Supabase Configuration
-const SUPABASE_URL = 'https://dniknbqcdyxswlylrvav.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_w4r1WuBauup_AGOgEmQOJw_2UN_zmRX';
-// Using 'supabase' global from CDN; renaming instance to 'sb' to avoid conflict
-const sb = (typeof supabase !== 'undefined') ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
-if (sb) console.log('Hassan Hub: Cloud Connected ✅');
-else console.warn('Hassan Hub: Cloud Disconnected - Check Library ❌');
-
 // State Management
+let sb = null; // Initialized in initCloud()
 let salaryRecords = [];
 let adjustmentRecords = [];
 let auditLog = [];
@@ -879,6 +872,56 @@ document.getElementById('submit-recovery').addEventListener('click', () => {
         }
     }
 });
+
+// Final Initialization
+document.addEventListener('DOMContentLoaded', () => {
+    initCloud();
+    initIdentity();
+    initTheme();
+    setupFilters();
+    checkAndSyncData();
+    lucide.createIcons();
+});
+
+async function initCloud() {
+    // Small delay to ensure CDN scripts are fully parsed by browser
+    await new Promise(res => setTimeout(res, 500)); 
+    
+    const SUPABASE_URL = 'https://dniknbqcdyxswlylrvav.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_w4r1WuBauup_AGOgEmQOJw_2UN_zmRX';
+
+    const statusText = document.getElementById('cloud-status-text');
+    const statusIndicator = document.getElementById('cloud-sync-indicator');
+    const statusFill = document.getElementById('status-fill');
+
+    if (typeof supabase === 'undefined' && typeof window.supabase === 'undefined') {
+        console.error('Supabase library missing.');
+        if (statusText) statusText.innerText = 'CLOUD: ERROR';
+        return;
+    }
+
+    const lib = window.supabase || supabase;
+
+    try {
+        sb = lib.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        // Health Check - Check if we can reach the table
+        const { error } = await sb.from('salary_records').select('id').limit(1);
+        if (error) throw error;
+
+        if (statusText) statusText.innerText = 'CLOUD: ONLINE';
+        if (statusIndicator) statusIndicator.classList.add('online');
+        if (statusFill) statusFill.style.width = '100.2%'; 
+        console.log('Hassan Hub: Cloud Shield Active ✅');
+        
+        // Final Fetch
+        fetchCloudData();
+    } catch (err) {
+        console.error('Cloud Connection Failed:', err);
+        if (statusText) statusText.innerText = 'CLOUD: OFFLINE';
+        if (statusIndicator) statusIndicator.classList.remove('online');
+        if (statusFill) statusFill.style.width = '10%';
+    }
+}
 
 function showNotification(message, type = 'info') {
     const container = document.getElementById('notification-container');

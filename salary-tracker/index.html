@@ -38,12 +38,12 @@
 
                 <div class="hacker-status" id="hacker-status">
                     <div class="status-header">
-                        <span class="status-label">HUB STATUS</span>
+                        <span class="status-label">CLOUD CORE</span>
                         <div id="cloud-sync-indicator" class="cloud-indicator outline" title="Cloud Sync Active">
                             <i data-lucide="cloud"></i>
                         </div>
                     </div>
-                    <span class="status-rank" id="status-rank">UNINITIALIZED</span>
+                    <span class="status-rank" id="cloud-status-text">INITIALIZING...</span>
                     <div class="status-bar"><div id="status-fill" class="status-fill"></div></div>
                 </div>
                 
@@ -673,11 +673,11 @@
                 <h2>SALARY SLIP</h2>
                 <div class="hacker-seal">SECURE RELEASE v2.0</div>
             </div>
-            <div class="slip-grid">
-                <div class="slip-section">
-                    <label>Employee Name</label>
-                    <p id="slip-name"></p>
+            <div class="top-bar-right">
+                <div class="date-display">
+                    <p id="current-date">Sunday, 12 April 2026</p>
                 </div>
+            </div>
                 <div class="slip-section">
                     <label>Month</label>
                     <p id="slip-month"></p>
@@ -705,9 +705,6 @@
             </div>
         </div>
 
-        <!-- Libraries -->
-        <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-        
         <!-- App Logic -->
         <script src="script.js"></script>
         <script>
