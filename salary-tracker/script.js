@@ -1497,11 +1497,12 @@ function updateHackerStatus(totalSalary = 0) {
     else if (totalSalary > 400000) rank = "SENIOR ANALYST";
     else if (totalSalary > 100000) rank = "SECURITY SPECIALIST";
 
-    statusRank.innerText = rank;
-    statusFill.style.width = `${progress}%`;
+    // Use the statusText if available (it represents the Sheets connection status usually,
+    // but here we can append the rank or use another element if we want)
+    const statusLabel = document.querySelector('.status-label');
+    if (statusLabel) statusLabel.innerText = rank;
     
-    // Optional: Add glow if rank is high
-    if (progress === 100) statusFill.style.boxShadow = '0 0 10px var(--primary)';
+    if (statusFill) statusFill.style.width = `${progress}%`;
+    
+    if (progress === 100 && statusFill) statusFill.style.boxShadow = '0 0 10px var(--primary)';
 }
-
-init();
