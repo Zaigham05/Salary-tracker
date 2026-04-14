@@ -66,9 +66,7 @@ const statusText = document.getElementById('cloud-status-text');
 const statusFill = document.getElementById('status-fill');
 const pinDisplay = document.getElementById('pin-display');
 
-// Set Current Date
-const options = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
-dateEl.innerText = new Date().toLocaleDateString('en-US', options);
+// Set Current Date logic moved to Boot Sequence at end of file
 
 // Identity Persistence
 const userHandleEl = document.getElementById('user-handle');
@@ -1587,3 +1585,24 @@ function updateHackerStatus(totalSalary = 0) {
     
     if (progress === 100 && statusFill) statusFill.style.boxShadow = '0 0 10px var(--primary)';
 }
+
+// Final Boot Sequence
+document.addEventListener('DOMContentLoaded', () => {
+    try {
+        // Core Setup
+        init(); 
+        initCloud(); 
+        initIdentity();
+        initKeypad();
+        
+        // UI Polish
+        if (dateEl) {
+            const options = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
+            dateEl.innerText = new Date().toLocaleDateString('en-US', options);
+        }
+        
+        if (window.lucide) lucide.createIcons();
+    } catch (e) {
+        console.error('Boot Error:', e);
+    }
+});
