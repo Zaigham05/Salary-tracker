@@ -89,6 +89,57 @@ function updateAvatar(name) {
     userAvatarEl.src = `https://api.dicebear.com/7.x/bottts/svg?seed=${name}`;
 }
 
+// Data Mapping Utilities
+function mapToSql(record) {
+    const mapping = {
+        baseSalary: 'base_salary',
+        totalDays: 'total_days',
+        workingDays: 'working_days',
+        shortTimeAmount: 'short_time_amount',
+        overTimeAmount: 'over_time_amount',
+        pfDeduction: 'pf_deduction',
+        eobiDeduction: 'eobi_deduction',
+        incomeTax: 'income_tax',
+        withoutPay: 'without_pay',
+        grossSalary: 'gross_salary',
+        overAllDeduction: 'overall_deduction',
+        netPayable: 'net_payable'
+    };
+    const sqlRec = { ...record };
+    for (const [jsKey, sqlKey] of Object.entries(mapping)) {
+        if (record[jsKey] !== undefined) {
+            sqlRec[sqlKey] = record[jsKey];
+            delete sqlRec[jsKey];
+        }
+    }
+    return sqlRec;
+}
+
+function mapFromSql(sqlRec) {
+    const mapping = {
+        base_salary: 'baseSalary',
+        total_days: 'totalDays',
+        working_days: 'workingDays',
+        short_time_amount: 'shortTimeAmount',
+        over_time_amount: 'overTimeAmount',
+        pf_deduction: 'pfDeduction',
+        eobi_deduction: 'eobiDeduction',
+        income_tax: 'incomeTax',
+        without_pay: 'withoutPay',
+        gross_salary: 'grossSalary',
+        overall_deduction: 'overAllDeduction',
+        net_payable: 'netPayable'
+    };
+    const record = { ...sqlRec };
+    for (const [sqlKey, jsKey] of Object.entries(mapping)) {
+        if (sqlRec[sqlKey] !== undefined) {
+            record[jsKey] = sqlRec[sqlKey];
+            delete record[sqlKey];
+        }
+    }
+    return record;
+}
+
 async function fetchCloudData() {
     if (!sb) return;
     setSyncing(true);
@@ -97,7 +148,7 @@ async function fetchCloudData() {
         const { data: adjustments, error: adjErr } = await sb.from('adjustment_records').select('*').order('created_at', { ascending: false });
         const { data: logs, error: logErr } = await sb.from('audit_log').select('*').order('timestamp', { ascending: false });
 
-        if (!salErr && salaries) salaryRecords = salaries;
+        if (!salErr && salaries) salaryRecords = salaries.map(mapFromSql);
         if (!adjErr && adjustments) adjustmentRecords = adjustments;
         if (!logErr && logs) auditLog = logs;
 
@@ -124,9 +175,9 @@ async function checkAndSyncData() {
             const { data: { user } } = await sb.auth.getUser();
             const uid = user ? user.id : null;
             
-            if (localSals.length > 0) await sb.from('salary_records').insert(localSals.map(r => ({ ...r, user_id: uid })));
+            if (localSals.length > 0) await sb.from('salary_records').insert(localSals.map(r => mapToSql({ ...r, user_id: uid })));
             if (localFunds.length > 0) await sb.from('adjustment_records').insert(localFunds.map(a => ({ ...a, user_id: uid })));
-            if (localLogs.length > 0) await sb.from('audit_log').insert(localLogs.map(l => ({ ...l, user_id: uid })));
+            if (auditLog.length > 0) await sb.from('audit_log').insert(auditLog.map(l => ({ ...l, user_id: uid })));
             
             localStorage.setItem('hasSyncedToCloud', 'true');
             localStorage.removeItem('salaryRecords');
@@ -588,12 +639,12 @@ salaryForm.addEventListener('submit', async (e) => {
         if (isEditing) {
             const index = salaryRecords.findIndex(r => r.id === isEditing);
             salaryRecords[index] = newRec;
-            if (sb) await sb.from('salary_records').update(newRec).eq('id', isEditing);
+            if (sb) await sb.from('salary_records').update(mapToSql(newRec)).eq('id', isEditing);
             logAudit('Edit', isEditing, `Updated record for ${month}. Base: ${baseSalary}`);
             isEditing = null;
         } else {
             salaryRecords.push(newRec);
-            if (sb) await sb.from('salary_records').insert(newRec);
+            if (sb) await sb.from('salary_records').insert(mapToSql(newRec));
             logAudit('Add', newRec.id, `Added record for ${month}. Net: ${netPayable}`);
         }
 
