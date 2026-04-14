@@ -18,11 +18,27 @@ let isEditing = null;
 let activeDashTab = 'analytics';
 let isSyncing = false;
 
-const cloudIndicator = document.getElementById('cloud-sync-indicator');
+// DOM Reference Cache
+let el = {}; 
+
+function initDomReferences() {
+    const ids = [
+        'cloud-sync-indicator', 'current-date', 'view-title', 'salary-table-body',
+        'salary-total-net', 'salary-total-ded', 'salary-avg-net', 'add-salary-btn',
+        'sal-year-filter', 'sal-month-filter', 'vault-lock', 'cloud-status-text',
+        'status-fill', 'pin-display', 'user-handle', 'user-avatar', 'salary-modal'
+    ];
+    ids.forEach(id => {
+        el[id] = document.getElementById(id);
+    });
+}
+
 function setSyncing(state) {
     isSyncing = state;
-    if (state) cloudIndicator.classList.add('syncing');
-    else cloudIndicator.classList.remove('syncing');
+    if (el['cloud-sync-indicator']) {
+        if (state) el['cloud-sync-indicator'].classList.add('syncing');
+        else el['cloud-sync-indicator'].classList.remove('syncing');
+    }
 }
 
 function switchDashboardTab(tabId) {
@@ -47,34 +63,10 @@ function switchDashboardTab(tabId) {
     lucide.createIcons();
 }
 
-// DOM Elements
-const dateEl = document.getElementById('current-date');
-const themeBtns = document.querySelectorAll('.theme-btn');
-const viewTitle = document.getElementById('view-title');
-
-// Salary DOM
-const salaryListEl = document.getElementById('salary-table-body');
-const salTotalNetEl = document.getElementById('salary-total-net');
-const salTotalDedEl = document.getElementById('salary-total-ded');
-const salAvgNetEl = document.getElementById('salary-avg-net');
-const addSalaryBtn = document.getElementById('add-salary-btn');
-const salYearSelect = document.getElementById('sal-year-filter');
-const salMonthSelect = document.getElementById('sal-month-filter');
-const vaultOverlay = document.getElementById('vault-lock');
-
-const statusText = document.getElementById('cloud-status-text');
-const statusFill = document.getElementById('status-fill');
-const pinDisplay = document.getElementById('pin-display');
-
-// Set Current Date logic moved to Boot Sequence at end of file
-
 // Identity Persistence
-const userHandleEl = document.getElementById('user-handle');
-const userAvatarEl = document.getElementById('user-avatar');
-
 function initIdentity() {
     const savedName = localStorage.getItem('userName') || 'Mr Hassan';
-    userHandleEl.innerText = savedName;
+    if (el['user-handle']) el['user-handle'].innerText = savedName;
     updateAvatar(savedName);
 }
 
@@ -1572,6 +1564,9 @@ function updateHackerStatus(totalSalary = 0) {
 function startHub() {
     console.log('Hub: Initialization sequence started...');
     
+    // 0. Cache DOM References
+    initDomReferences();
+
     // 1. Critical UI Setup (Immediate)
     try {
         initKeypad(); 
@@ -1589,9 +1584,9 @@ function startHub() {
 
     // 3. Polish
     try {
-        if (typeof dateEl !== 'undefined' && dateEl) {
+        if (el['current-date']) {
             const options = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
-            dateEl.innerText = new Date().toLocaleDateString('en-US', options);
+            el['current-date'].innerText = new Date().toLocaleDateString('en-US', options);
         }
         if (window.lucide) lucide.createIcons();
     } catch (e) { console.error('Polish Error:', e); }
