@@ -1568,8 +1568,8 @@ function updateHackerStatus(totalSalary = 0) {
     if (progress === 100 && statusFill) statusFill.style.boxShadow = '0 0 10px var(--primary)';
 }
 
-// Sovereign Master Boot Sequence
-document.addEventListener('DOMContentLoaded', () => {
+// Bulletproof Sovereign Boot Sequence
+function startHub() {
     console.log('Hub: Initialization sequence started...');
     
     // 1. Critical UI Setup (Immediate)
@@ -1589,7 +1589,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 3. Polish
     try {
-        if (dateEl) {
+        if (typeof dateEl !== 'undefined' && dateEl) {
             const options = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
             dateEl.innerText = new Date().toLocaleDateString('en-US', options);
         }
@@ -1597,4 +1597,10 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (e) { console.error('Polish Error:', e); }
     
     console.log('Hub: System Ready.');
-});
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', startHub);
+} else {
+    startHub();
+}
