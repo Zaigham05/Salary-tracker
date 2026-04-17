@@ -116,7 +116,7 @@
                             <button class="theme-btn" data-theme="ghost" title="Ghost Shell"><i data-lucide="ghost"></i></button>
                         </div>
                         <div class="action-buttons">
-                            <button id="add-fund-btn" class="secondary-btn" style="border-color: var(--warning); color: var(--warning);">
+                            <button id="add-fund-btn" class="secondary-btn" style="border-color: var(--warning); color: var(--warning);" onclick="window.openFundModal()">
                                 <i data-lucide="plus-square"></i>
                                 <span>Add Extra Fund</span>
                             </button>
@@ -124,7 +124,7 @@
                                 <i data-lucide="bar-chart-3"></i>
                                 <span>Yearly Summary</span>
                             </button>
-                            <button id="add-salary-btn" class="primary-btn view-btn">
+                            <button id="add-salary-btn" class="primary-btn view-btn" onclick="window.openSalaryModal()">
                                 <i data-lucide="plus-circle"></i>
                                 <span>Add Salary Record</span>
                             </button>
