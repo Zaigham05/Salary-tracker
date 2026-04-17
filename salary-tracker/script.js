@@ -11,11 +11,9 @@ let salaryChartInstance = null;
 let salYearFilter = 'all';
 let salMonthFilter = 'all';
 let vaultPIN = localStorage.getItem('vaultPIN') || '2222';
-let recoveryPhrase = localStorage.getItem('recoveryPhrase') || '';
 let currentPIN = '';
 let isLocked = true;
 let isEditing = null; 
-let activeDashTab = 'analytics';
 let isSyncing = false;
 
 // --- DOM CACHE ---
@@ -26,12 +24,9 @@ function initDomReferences() {
         'cloud-sync-indicator', 'current-date', 'view-title', 'salary-table-body',
         'salary-total-net', 'salary-total-ded', 'salary-avg-net', 'add-salary-btn',
         'sal-year-filter', 'sal-month-filter', 'vault-lock', 'cloud-status-text',
-        'status-fill', 'pin-display', 'user-handle', 'user-avatar', 'salary-modal',
-        'salary-form', 'close-salary-modal', 'fund-modal', 'fund-form', 'add-fund-btn',
-        'close-fund-modal', 'security-modal', 'close-security-modal', 'security-form',
-        'security-error', 'audit-modal', 'close-audit-modal', 'audit-list', 'vault-msg',
-        'yearly-summary-modal', 'recovery-modal', 'import-salary-csv', 'export-salary-csv',
-        'export-audit-csv', 'export-funds-only-csv'
+        'status-fill', 'pin-display', 'salary-modal', 'salary-form', 'fund-modal',
+        'fund-form', 'security-modal', 'yearly-summary-modal', 'recovery-modal',
+        'import-salary-csv', 'export-salary-csv', 'import-json'
     ];
     ids.forEach(id => { el[id] = document.getElementById(id); });
 }
@@ -41,15 +36,14 @@ function startHub() {
     initDomReferences();
     initKeypad();
     initIdentity();
-    initTheme();
     setupEventListeners();
     if (!isLocked && el['vault-lock']) el['vault-lock'].style.display = 'none';
     renderSalaryView();
     fetchCloudData();
 }
 
-// --- VIEW NAVIGATION ---
-function showView(viewName) {
+// --- VIEW NAVIGATION (GLOBAL) ---
+window.showView = function(viewName) {
     const views = document.querySelectorAll('.app-view');
     views.forEach(v => v.classList.remove('active'));
     const target = document.getElementById(`${viewName}-view`);
@@ -58,20 +52,17 @@ function showView(viewName) {
         if (item.getAttribute('onclick')?.includes(viewName)) item.classList.add('active');
         else item.classList.remove('active');
     });
-}
+};
 
-function switchDashboardTab(tabId) {
-    activeDashTab = tabId;
+window.switchDashboardTab = function(tabId) {
     document.querySelectorAll('.dash-tab').forEach(tab => {
-        if (tab.dataset.tab === tabId) tab.classList.add('active');
-        else tab.classList.remove('active');
+        tab.classList.toggle('active', tab.dataset.tab === tabId);
     });
     document.querySelectorAll('.tab-pane').forEach(pane => {
-        if (pane.id === `tab-${tabId}`) pane.classList.add('active');
-        else pane.classList.remove('active');
+        pane.classList.toggle('active', pane.id === `tab-${tabId}`);
     });
     if (tabId === 'analytics') initSalaryChart();
-}
+};
 
 // --- DATA HANDLING ---
 function formatMonth(monthStr) {
@@ -97,7 +88,6 @@ async function fetchCloudData() {
             salaryRecords = data.salaries.filter(r => !deletedIds.includes(r.id));
             localStorage.setItem('salaryRecords', JSON.stringify(salaryRecords));
         }
-        if (data.adjustments) { adjustmentRecords = data.adjustments; localStorage.setItem('adjustmentRecords', JSON.stringify(adjustmentRecords)); }
         renderSalaryView();
         updateStatusText('ONLINE');
     } catch (err) { updateStatusText('OFFLINE'); } finally { setSyncing(false); }
@@ -106,13 +96,18 @@ async function fetchCloudData() {
 async function syncWithSheets(action, table, data) {
     if (!GOOGLE_SHEET_URL || GOOGLE_SHEET_URL.includes('PASTE')) return;
     try {
-        await fetch(GOOGLE_SHEET_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, table, data }) });
+        await fetch(GOOGLE_SHEET_URL, { 
+            method: 'POST', 
+            mode: 'no-cors', 
+            headers: { 'Content-Type': 'application/json' }, 
+            body: JSON.stringify({ action, table, data }) 
+        });
         return true;
     } catch (err) { return false; }
 }
 
-// --- CRUD OPERATIONS ---
-async function deleteSalaryRecord(id) {
+// --- CRUD OPERATIONS (GLOBAL) ---
+window.deleteSalaryRecord = async function(id) {
     const rec = salaryRecords.find(r => r.id === id);
     if (!rec) return;
     if (confirm(`CRITICAL: Permanently delete ${formatMonth(rec.month)} record?`)) {
@@ -120,13 +115,32 @@ async function deleteSalaryRecord(id) {
         if (!deletedIds.includes(id)) { deletedIds.push(id); localStorage.setItem('deletedIds', JSON.stringify(deletedIds)); }
         localStorage.setItem('salaryRecords', JSON.stringify(salaryRecords));
         renderSalaryView();
-        showNotification('Purging cloud...', 'success');
         await syncWithSheets('deleteSalary', 'salary_records', id);
-        showNotification('Cloud Data Purged!', 'success');
+        showNotification('Data Purged!', 'success');
     }
-}
+};
 
-function restoreData(event) {
+window.editSalaryRecord = function(id) {
+    const rec = salaryRecords.find(r => r.id === id);
+    if (!rec) return;
+    isEditing = id;
+    document.getElementById('sal-month').value = rec.month;
+    document.getElementById('sal-base').value = rec.baseSalary;
+    document.getElementById('sal-tot-days').value = rec.totalDays;
+    document.getElementById('sal-absent').value = rec.totalDays - (rec.workingDays || rec.totalDays);
+    document.getElementById('sal-st-amount').value = rec.shortTimeAmount || 0;
+    document.getElementById('sal-ot-amount').value = rec.overTimeAmount || 0;
+    document.getElementById('sal-pf').value = rec.pfDeduction || 0;
+    document.getElementById('sal-eobi').value = rec.eobiDeduction || 0;
+    document.getElementById('sal-tax').value = rec.incomeTax || 0;
+    document.getElementById('sal-wop').value = rec.withoutPay || 0;
+    document.getElementById('sal-other-ded').value = rec.otherDeductions || 0;
+    document.getElementById('sal-allowance').value = rec.allowance || 0;
+    document.getElementById('sal-remarks').value = rec.remarks || '';
+    if (el['salary-modal']) el['salary-modal'].style.display = 'flex';
+};
+
+window.restoreData = function(event) {
     const file = event.target.files[0];
     if (!file) return;
     const reader = new FileReader();
@@ -136,72 +150,75 @@ function restoreData(event) {
             if (data.salaryRecords) {
                 salaryRecords = data.salaryRecords;
                 localStorage.setItem('salaryRecords', JSON.stringify(salaryRecords));
-                showNotification('Restore Complete!', 'success');
                 renderSalaryView();
+                showNotification('Hub Restored!', 'success');
             }
-        } catch (err) { showNotification('Invalid Backup File', 'error'); }
+        } catch (err) { showNotification('Invalid Backup', 'error'); }
     };
     reader.readAsText(file);
-}
+};
 
-// --- CSV UPLOAD/EXPORT LOGIC ---
-function importSalaryCSV(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-        const rows = e.target.result.split('\n').filter(r => r.trim());
-        const imported = [];
-        for (let i = 1; i < rows.length; i++) { // Skip header
-            const cols = rows[i].split(',').map(c => c.trim());
-            if (cols.length < 5) continue;
-            const rec = {
-                id: Math.random().toString(36).substr(2, 9),
-                month: cols[0],
-                baseSalary: +cols[1] || 0,
-                netPayable: +cols[2] || 0,
-                date: new Date().toISOString(),
-                totalDays: 26, workingDays: 26, allowance: 0, pfDeduction: 0, eobiDeduction: 0, incomeTax: 0, shortTimeAmount: 0, overTimeAmount: 0, withoutPay: 0, otherDeductions: 0, grossSalary: +cols[1] || 0, overAllDeduction: 0, remarks: 'CSV Import'
-            };
-            imported.push(rec);
-            await syncWithSheets('saveSalary', 'salary_records', rec);
-        }
-        salaryRecords = [...salaryRecords, ...imported];
-        localStorage.setItem('salaryRecords', JSON.stringify(salaryRecords));
-        renderSalaryView();
-        showNotification(`${imported.length} Records Imported!`, 'success');
-    };
-    reader.readAsText(file);
-}
+window.printSalarySlip = function(id) {
+    const rec = salaryRecords.find(r => r.id === id);
+    if (!rec) return;
+    const w = window.open('', '_blank');
+    w.document.write(`<html><head><title>Slip - ${formatMonth(rec.month)}</title><style>body{font-family:sans-serif;padding:40px;}table{width:100%;border-collapse:collapse;}td{padding:10px;border-bottom:1px solid #eee;}.total{font-weight:700;color:#10b981;}</style></head><body><h2>HASSAN HUB | SALARY SLIP</h2><p>Period: ${formatMonth(rec.month)}</p><table><tr><td>Base</td><td>${CURRENCY}${rec.baseSalary.toLocaleString()}</td></tr><tr><td>Deductions</td><td style="color:red;">-${CURRENCY}${rec.overAllDeduction.toLocaleString()}</td></tr><tr class="total"><td>NET PAYABLE</td><td>${CURRENCY}${rec.netPayable.toLocaleString()}</td></tr></table><script>window.print();<\/script></body></html>`);
+    w.document.close();
+};
 
-function exportSalaryToCSV() {
-    let csv = "Month,Base Salary,Total Days,OT/ST,Deductions,Gross Salary,Net Payable,Remarks\n";
-    salaryRecords.forEach(r => {
-        csv += `${formatMonth(r.month)},${r.baseSalary},${r.workingDays},${r.overTimeAmount},${r.overAllDeduction},${r.grossSalary},${r.netPayable},"${r.remarks || ''}"\n`;
-    });
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = `salary_records_export.csv`; a.click();
-}
+window.openSecurityModal = () => el['security-modal'].style.display = 'flex';
+window.openAuditLog = () => el['audit-modal'].style.display = 'flex';
+window.openYearlySummary = () => { el['yearly-summary-modal'].style.display = 'flex'; updateYearlySummary(); };
+window.backupData = () => {
+    const data = JSON.stringify({ salaryRecords });
+    const blob = new Blob([data], { type: 'application/json' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'hub_backup.json'; a.click();
+};
 
-// --- UI RENDERING ---
-function renderSalaryTable() {
+// --- CORE UTILS ---
+function renderSalaryView() {
     if (!el['salary-table-body']) return;
     el['salary-table-body'].innerHTML = '';
     const sorted = [...salaryRecords].sort((a,b)=>new Date(a.date)-new Date(b.date));
     sorted.forEach(item => {
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td class="sticky-col" style="font-weight: 600; color: var(--primary);">${formatMonth(item.month)}</td><td>${CURRENCY}${item.baseSalary.toLocaleString()}</td><td>${item.totalDays}/${item.workingDays || item.totalDays}</td><td>${CURRENCY}${(item.shortTimeAmount || 0).toLocaleString()} / ${CURRENCY}${(item.overTimeAmount || 0).toLocaleString()}</td><td>${CURRENCY}${(item.pfDeduction + item.eobiDeduction).toLocaleString()}</td><td>${CURRENCY}${(item.incomeTax || 0).toLocaleString()}</td><td class="text-danger">${CURRENCY}${((item.otherDeductions || 0) + (item.withoutPay || 0)).toLocaleString()}</td><td>${CURRENCY}${item.grossSalary.toLocaleString()}</td><td class="text-success" style="font-weight: 700;">${CURRENCY}${item.netPayable.toLocaleString()}</td><td class="compact-cell">${item.remarks || '-'}</td><td class="action-td"><button class="icon-btn" onclick="editSalaryRecord('${item.id}')"><i data-lucide="edit-3"></i></button><button class="icon-btn" onclick="printSalarySlip('${item.id}')"><i data-lucide="printer"></i></button><button class="icon-btn delete-btn" onclick="deleteSalaryRecord('${item.id}')"><i data-lucide="trash-2"></i></button></td>`;
+        tr.innerHTML = `<td class="sticky-col" style="font-weight: 600; color: var(--primary);">${formatMonth(item.month)}</td><td>${CURRENCY}${item.baseSalary.toLocaleString()}</td><td>${item.totalDays}/${item.workingDays || item.totalDays}</td><td>${CURRENCY}${(item.shortTimeAmount || 0).toLocaleString()} / ${CURRENCY}${(item.overTimeAmount || 0).toLocaleString()}</td><td>${CURRENCY}${(item.pfDeduction + item.eobiDeduction).toLocaleString()}</td><td>${CURRENCY}${(item.incomeTax || 0).toLocaleString()}</td><td class="text-danger">${CURRENCY}${((item.otherDeductions || 0) + (item.withoutPay || 0)).toLocaleString()}</td><td>${CURRENCY}${item.grossSalary.toLocaleString()}</td><td class="text-success" style="font-weight: 700;">${CURRENCY}${item.netPayable.toLocaleString()}</td><td>${item.remarks || '-'}</td><td class="action-td"><button class="icon-btn" onclick="editSalaryRecord('${item.id}')"><i data-lucide="edit-3"></i></button><button class="icon-btn" onclick="printSalarySlip('${item.id}')"><i data-lucide="printer"></i></button><button class="icon-btn delete-btn" onclick="deleteSalaryRecord('${item.id}')"><i data-lucide="trash-2"></i></button></td>`;
         el['salary-table-body'].appendChild(tr);
     });
     if (window.lucide) lucide.createIcons();
+    updateSummaryCards();
 }
 
+function updateSummaryCards() {
+    const total = salaryRecords.reduce((acc, r) => acc + r.netPayable, 0);
+    if (el['salary-total-net']) el['salary-total-net'].innerText = `${CURRENCY}${total.toLocaleString()}`;
+    const rank = total > 500000 ? "ELITE ARCHITECT" : total > 200000 ? "SENIOR ANALYST" : "HUB JUNIOR";
+    const label = document.querySelector('.status-label');
+    if (label) label.innerText = rank;
+}
+
+function initKeypad() {
+    const pinBtns = document.querySelectorAll('.pin-btn');
+    pinBtns.forEach(btn => {
+        btn.onclick = () => {
+            const val = btn.textContent.trim();
+            if (val === 'C' || btn.id === 'clear-pin') { currentPIN = ''; }
+            else if (btn.id === 'enter-pin' || val === 'L') { if (currentPIN === vaultPIN) unlockVault(); else currentPIN = ''; }
+            else if (/^\d$/.test(val)) { currentPIN += val; }
+            if (el['pin-display']) el['pin-display'].innerHTML = '●'.repeat(currentPIN.length) + '○'.repeat(4 - currentPIN.length);
+        };
+    });
+}
+
+function unlockVault() { isLocked = false; if (el['vault-lock']) el['vault-lock'].style.display = 'none'; renderSalaryView(); }
+function updateStatusText(t) { if (el['cloud-status-text']) el['cloud-status-text'].innerText = t; }
+function initIdentity() { if (el['user-handle']) el['user-handle'].innerText = localStorage.getItem('userName') || 'Mr Hassan'; }
+function initTheme() { document.documentElement.setAttribute('data-theme', localStorage.getItem('theme') || 'default'); }
+function setSyncing(s) { if (el['cloud-sync-indicator']) el['cloud-sync-indicator'].style.opacity = s ? '1' : '0.3'; }
+function showNotification(m, t) { alert(m); }
+function initSalaryChart() {}
+
 function setupEventListeners() {
-    if (el['import-salary-csv']) el['import-salary-csv'].onchange = importSalaryCSV;
-    if (el['export-salary-csv']) el['export-salary-csv'].onclick = exportSalaryToCSV;
-    if (el['add-salary-btn']) el['add-salary-btn'].onclick = () => { isEditing = null; el['salary-form'].reset(); el['salary-modal'].style.display = 'flex'; };
-    if (el['close-salary-modal']) el['close-salary-modal'].onclick = () => el['salary-modal'].style.display = 'none';
     if (el['salary-form']) {
         el['salary-form'].onsubmit = async (e) => {
             e.preventDefault();
@@ -212,21 +229,10 @@ function setupEventListeners() {
             if (isEditing) { const idx = salaryRecords.findIndex(r => r.id === isEditing); salaryRecords[idx] = rec; }
             else salaryRecords.push(rec);
             localStorage.setItem('salaryRecords', JSON.stringify(salaryRecords));
-            el['salary-modal'].style.display = 'none'; renderSalaryView();
+            isEditing = null; el['salary-modal'].style.display = 'none'; renderSalaryView();
             await syncWithSheets('saveSalary', 'salary_records', rec);
         };
     }
 }
-
-// --- BASIC PLACEHOLDERS TO PREVENT CRASH ---
-function renderSalaryView() { renderSalaryTable(); }
-function initIdentity() { const name = localStorage.getItem('userName') || 'Mr Hassan'; if (el['user-handle']) el['user-handle'].innerText = name; }
-function initKeypad() { document.querySelectorAll('.pin-btn').forEach(b => b.onclick = () => { currentPIN += b.textContent; if (currentPIN === vaultPIN) unlockVault(); }); }
-function unlockVault() { isLocked = false; if (el['vault-lock']) el['vault-lock'].style.display = 'none'; renderSalaryView(); }
-function updateStatusText(t) { if (el['cloud-status-text']) el['cloud-status-text'].innerText = t; }
-function initTheme() {}
-function setSyncing(s) { if (el['cloud-sync-indicator']) el['cloud-sync-indicator'].style.opacity = s ? '1' : '0.3'; }
-function showNotification(m, t) { alert(m); }
-function initSalaryChart() {}
 
 document.addEventListener('DOMContentLoaded', startHub);
