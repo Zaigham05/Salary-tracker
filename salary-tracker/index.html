@@ -669,7 +669,22 @@
         </div>
 
         <!-- Notification System -->
-        <div id="notification-container"></div>
+        <div id="notification-container" class="toast-container"></div>
+
+        <!-- Custom Confirm Modal -->
+        <div id="confirm-modal" class="modal-overlay">
+            <div class="modal-content confirm-box">
+                <div class="confirm-icon"><i data-lucide="alert-circle"></i></div>
+                <div class="confirm-body">
+                    <h3 id="confirm-title">Confirm Action</h3>
+                    <p id="confirm-msg">Are you sure you want to proceed?</p>
+                </div>
+                <div class="confirm-actions">
+                    <button class="action-btn secondary" id="confirm-cancel">Cancel</button>
+                    <button class="action-btn primary danger" id="confirm-ok">Continue</button>
+                </div>
+            </div>
+        </div>
 
         <!-- Hidden Salary Slip Template for Printing -->
         <div id="salary-slip-template" class="print-only">

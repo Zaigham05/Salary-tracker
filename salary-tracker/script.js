@@ -22,7 +22,10 @@ function initDomReferences() {
         'cloud-sync-indicator', 'current-date', 'view-title', 'salary-table-body',
         'salary-total-net', 'salary-total-ded', 'salary-avg-net', 'vault-lock', 
         'cloud-status-text', 'pin-display', 'salary-modal', 'salary-form', 
-        'fund-modal', 'fund-form', 'security-modal', 'yearly-summary-modal'
+        'fund-modal', 'fund-form', 'security-modal', 'yearly-summary-modal',
+        'breakdown-base', 'breakdown-ot', 'breakdown-pf', 'breakdown-eobi', 
+        'breakdown-tax', 'breakdown-st', 'breakdown-avg-ot',
+        'confirm-modal', 'confirm-title', 'confirm-msg', 'confirm-ok', 'confirm-cancel'
     ];
     ids.forEach(id => { el[id] = document.getElementById(id); });
 }
@@ -33,24 +36,55 @@ function startHub() {
     initKeypad();
     initIdentity();
     setupEventListeners();
-    if (!isLocked && el['vault-lock']) el['vault-lock'].style.display = 'none';
+    
+    // Deep Lockdown: Hide Profile and Main Content completely on startup
+    if (isLocked) {
+        if (el['vault-lock']) el['vault-lock'].style.display = 'flex';
+        const profile = document.querySelector('.user-profile');
+        const main = document.querySelector('.main-content');
+        const nav = document.querySelector('.nav-menu');
+        if (profile) profile.style.display = 'none';
+        if (main) main.style.display = 'none';
+        if (nav) nav.style.display = 'none';
+    } else {
+        unlockVault();
+    }
+
     renderSalaryView();
     fetchCloudData();
 }
 
-// --- VIEW NAVIGATION (GLOBAL) ---
+// --- VIEW NAVIGATION ---
 window.showView = function(v) {
+    if (isLocked) return;
     document.querySelectorAll('.app-view').forEach(view => view.classList.toggle('active', view.id === `${v}-view`));
     document.querySelectorAll('.nav-item').forEach(item => {
         item.classList.toggle('active', item.getAttribute('onclick')?.includes(v));
     });
 };
 
-window.switchDashboardTab = function(tabId) {
-    document.querySelectorAll('.dash-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabId));
-    document.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.id === `tab-${tabId}`));
-    if (tabId === 'analytics') initSalaryChart();
-};
+function unlockVault() {
+    isLocked = false;
+    if (el['vault-lock']) el['vault-lock'].style.display = 'none';
+    
+    // Reveal all components
+    const profile = document.querySelector('.user-profile');
+    const main = document.querySelector('.main-content');
+    const nav = document.querySelector('.nav-menu');
+    if (profile) profile.style.display = 'flex';
+    if (main) main.style.display = 'block';
+    if (nav) nav.style.display = 'flex';
+    
+    renderSalaryView();
+    window.showNotify('VAULT UNLOCKED: WELCOME BACK', 'success');
+}
+
+// --- SEQUENTIAL ID SYSTEM ---
+function getNextNumericId() {
+    const salMax = salaryRecords.reduce((max, r) => Math.max(max, parseInt(r.id) || 0), 0);
+    const adjMax = adjustmentRecords.reduce((max, r) => Math.max(max, parseInt(r.id) || 0), 0);
+    return Math.max(salMax, adjMax) + 1;
+}
 
 // --- DATA HANDLING ---
 function formatMonth(m) {
@@ -60,6 +94,20 @@ function formatMonth(m) {
     if (isNaN(d.getTime())) return m;
     const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     return `${months[d.getMonth()]}-${d.getFullYear().toString().slice(-2)}`;
+}
+
+function isRecordEditable(monthStr) {
+    if (!monthStr || monthStr === '-') return true;
+    try {
+        const parts = monthStr.split('-');
+        if (parts.length !== 2) return true;
+        const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        const recMonth = months.indexOf(parts[0]);
+        const recYear = 2000 + parseInt(parts[1]);
+        const now = new Date();
+        const diff = (now.getFullYear() - recYear) * 12 + (now.getMonth() - recMonth);
+        return diff <= 1; // 2 Months lockdown
+    } catch(e) { return true; }
 }
 
 async function fetchCloudData() {
@@ -93,22 +141,28 @@ async function syncWithSheets(action, table, data) {
 window.deleteSalaryRecord = async function(id) {
     const rec = salaryRecords.find(r => r.id === id);
     if (!rec) return;
-    if (confirm(`CRITICAL: Permanently delete ${formatMonth(rec.month)} record?`)) {
+    if (await window.showConfirm('ARCHIVE DATA?', `Move ${formatMonth(rec.month)} [ID: ${id}] to Archive?`)) {
         salaryRecords = salaryRecords.filter(r => r.id !== id);
         if (!deletedIds.includes(id)) { deletedIds.push(id); localStorage.setItem('deletedIds', JSON.stringify(deletedIds)); }
         localStorage.setItem('salaryRecords', JSON.stringify(salaryRecords));
         renderSalaryView();
         await syncWithSheets('deleteSalary', 'salary_records', id);
-        showNotification('Data Purged!', 'success');
+        window.showNotify('Record Archived Successfully', 'success');
     }
 };
 
 window.editSalaryRecord = function(id) {
     const rec = salaryRecords.find(r => r.id === id);
     if (!rec) return;
+    if (!isRecordEditable(rec.month)) {
+        window.showNotify(`LOCKED: Records older than 2 months cannot be edited.`, 'warning');
+        return;
+    }
     isEditing = id;
     document.getElementById('sal-month').value = rec.month;
-    document.getElementById('sal-base').value = rec.baseSalary;
+    document.getElementById('sal-base').value = rec.baseSalary || 0;
+    document.getElementById('sal-tot-days').value = rec.totalDays || 26;
+    document.getElementById('sal-absent').value = (rec.totalDays || 26) - (rec.workingDays || 26);
     document.getElementById('sal-st-amount').value = rec.shortTimeAmount || 0;
     document.getElementById('sal-ot-amount').value = rec.overTimeAmount || 0;
     document.getElementById('sal-pf').value = rec.pfDeduction || 0;
@@ -116,21 +170,25 @@ window.editSalaryRecord = function(id) {
     document.getElementById('sal-tax').value = rec.incomeTax || 0;
     document.getElementById('sal-allowance').value = rec.allowance || 0;
     document.getElementById('sal-remarks').value = rec.remarks || '';
+    
+    ['pf', 'eobi', 'tax'].forEach(f => {
+        const cb = document.getElementById(`${f}-manual`);
+        if (cb) cb.checked = false;
+        const inp = document.getElementById(`sal-${f}`);
+        if (inp) inp.readOnly = true;
+    });
     el['salary-modal'].style.display = 'flex';
 };
 
-window.printSalarySlip = function(id) {
-    const rec = salaryRecords.find(r => r.id === id);
-    if (!rec) return;
-    const w = window.open('', '_blank');
-    w.document.write(`<html><head><title>Slip - ${formatMonth(rec.month)}</title><style>body{font-family:sans-serif;background:#030712;color:white;padding:40px;}table{width:100%;border-collapse:collapse;}td{padding:12px;border-bottom:1px solid #333;}.total{color:#10b981;font-weight:700;font-size:1.2rem;}</style></head><body><h2>HASSAN HUB | SALARY SLIP</h2><p>Period: ${formatMonth(rec.month)}</p><table><tr><td>Base Salary</td><td>${CURRENCY}${rec.baseSalary.toLocaleString()}</td></tr><tr><td>Deductions</td><td style="color:#ef4444;">-${CURRENCY}${rec.overAllDeduction.toLocaleString()}</td></tr><tr class="total"><td>NET PAYABLE</td><td>${CURRENCY}${rec.netPayable.toLocaleString()}</td></tr></table><script>window.print();<\/script></body></html>`);
-    w.document.close();
+window.openSalaryModal = () => { 
+    isEditing = null; 
+    if (el['salary-form']) el['salary-form'].reset(); 
+    ['pf', 'eobi', 'tax'].forEach(f => {
+        const inp = document.getElementById(`sal-${f}`);
+        if (inp) inp.readOnly = true;
+    });
+    el['salary-modal'].style.display = 'flex'; 
 };
-
-window.openSalaryModal = () => { isEditing = null; if (el['salary-form']) el['salary-form'].reset(); el['salary-modal'].style.display = 'flex'; };
-window.openFundModal = () => { if (el['fund-form']) el['fund-form'].reset(); el['fund-modal'].style.display = 'flex'; };
-window.openYearlySummary = () => { el['yearly-summary-modal'].style.display = 'flex'; updateYearlySummary(); };
-window.closeModal = (id) => { document.getElementById(id).style.display = 'none'; };
 
 window.autoCalculateSalary = function() {
     const base = +document.getElementById('sal-base').value || 0;
@@ -148,9 +206,11 @@ window.autoCalculateSalary = function() {
 function renderSalaryView() {
     if (!el['salary-table-body']) return;
     el['salary-table-body'].innerHTML = '';
-    salaryRecords.sort((a,b)=>new Date(b.date)-new Date(a.date)).forEach(item => {
+    [...salaryRecords].sort((a,b)=>new Date(b.date)-new Date(a.date)).forEach(item => {
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td class="sticky-col" style="color:var(--primary); font-weight:600;">${formatMonth(item.month)}</td><td>${CURRENCY}${item.baseSalary.toLocaleString()}</td><td>${item.totalDays}/${item.workingDays}</td><td>${CURRENCY}${item.shortTimeAmount} / ${item.overTimeAmount}</td><td>${CURRENCY}${item.pfDeduction + item.eobiDeduction}</td><td>${CURRENCY}${item.incomeTax}</td><td class="text-danger">${CURRENCY}${item.otherDeductions}</td><td>${CURRENCY}${item.grossSalary.toLocaleString()}</td><td class="text-success" style="font-weight:700;">${CURRENCY}${item.netPayable.toLocaleString()}</td><td>${item.remarks || '-'}</td><td class="action-td"><button class="icon-btn" onclick="editSalaryRecord('${item.id}')"><i data-lucide="edit-3"></i></button><button class="icon-btn" onclick="printSalarySlip('${item.id}')"><i data-lucide="printer"></i></button><button class="icon-btn delete-btn" onclick="deleteSalaryRecord('${item.id}')"><i data-lucide="trash-2"></i></button></td>`;
+        const editable = isRecordEditable(item.month);
+        tr.style.opacity = editable ? '1' : '0.85';
+        tr.innerHTML = `<td class="sticky-col" style="color:var(--primary); font-weight:600;">${formatMonth(item.month)}</td><td>${CURRENCY}${(item.baseSalary || 0).toLocaleString()}</td><td>${item.totalDays || 26}/${item.workingDays || 26}</td><td>${CURRENCY}${item.shortTimeAmount || 0} / ${CURRENCY}${item.overTimeAmount || 0}</td><td>${CURRENCY}${(item.pfDeduction || 0) + (item.eobiDeduction || 0)}</td><td>${CURRENCY}${item.incomeTax || 0}</td><td class="text-danger">${CURRENCY}${((item.otherDeductions || 0) + (item.withoutPay || 0)).toLocaleString()}</td><td>${CURRENCY}${(item.grossSalary || 0).toLocaleString()}</td><td class="text-success" style="font-weight:700;">${CURRENCY}${(item.netPayable || 0).toLocaleString()}</td><td>${item.remarks || '-'}</td><td class="action-td"><button class="icon-btn ${editable ? '' : 'locked'}" onclick="editSalaryRecord('${item.id}')" ${editable ? '' : 'title="LOCKED"'}><i data-lucide="${editable ? 'edit-3' : 'lock'}"></i></button><button class="icon-btn" onclick="printSalarySlip('${item.id}')"><i data-lucide="printer"></i></button><button class="icon-btn delete-btn" onclick="deleteSalaryRecord('${item.id}')"><i data-lucide="trash-2"></i></button></td>`;
         el['salary-table-body'].appendChild(tr);
     });
     if (window.lucide) lucide.createIcons();
@@ -158,44 +218,118 @@ function renderSalaryView() {
 }
 
 function updateSummaryCards() {
-    const salTotal = salaryRecords.reduce((acc, r) => acc + (Number(r.netPayable) || 0), 0);
-    const fundTotal = adjustmentRecords.reduce((acc, r) => acc + (Number(r.amount) || 0), 0);
-    const overall = salTotal + fundTotal;
-    if (el['salary-total-net']) el['salary-total-net'].innerText = `${CURRENCY}${overall.toLocaleString()}`;
+    const netSal = salaryRecords.reduce((acc, r) => acc + (Number(r.netPayable) || 0), 0);
+    const netAdj = adjustmentRecords.reduce((acc, r) => acc + (Number(r.amount) || 0), 0);
+    const totalNet = netSal + netAdj;
+    
+    const base = salaryRecords.reduce((acc, r) => acc + (Number(r.baseSalary) || 0), 0);
+    const ot = salaryRecords.reduce((acc, r) => acc + (Number(r.overTimeAmount) || 0), 0);
+    const ded = salaryRecords.reduce((acc, r) => acc + (Number(r.overAllDeduction) || 0), 0);
+    
+    if (el['salary-total-net']) el['salary-total-net'].innerText = `${CURRENCY}${totalNet.toLocaleString()}`;
+    if (el['breakdown-base']) el['breakdown-base'].innerText = base.toLocaleString();
+    if (el['breakdown-ot']) el['breakdown-ot'].innerText = ot.toLocaleString();
+    if (el['salary-total-ded']) el['salary-total-ded'].innerText = `${CURRENCY}${ded.toLocaleString()}`;
+    
+    const count = salaryRecords.length || 1;
+    if (el['salary-avg-net']) el['salary-avg-net'].innerText = `${CURRENCY}${Math.round(totalNet/count).toLocaleString()}`;
+    if (el['breakdown-avg-ot']) el['breakdown-avg-ot'].innerText = Math.round(ot/count).toLocaleString();
 }
 
 function setupEventListeners() {
-    ['sal-base', 'sal-st', 'sal-ot'].forEach(id => { const f = document.getElementById(id); if (f) f.oninput = window.autoCalculateSalary; });
+    ['sal-base', 'sal-st', 'sal-ot', 'sal-tot-days', 'sal-absent'].forEach(id => { 
+        const f = document.getElementById(id); 
+        if (f) f.oninput = window.autoCalculateSalary; 
+    });
+    
     document.querySelectorAll('.close-btn').forEach(btn => btn.onclick = () => btn.closest('.modal-overlay').style.display = 'none');
     
+    ['pf', 'eobi', 'tax'].forEach(field => {
+        const cb = document.getElementById(`${field}-manual`);
+        if (cb) {
+            cb.addEventListener('change', (e) => {
+                const input = document.getElementById(`sal-${field}`);
+                if (input) {
+                    input.readOnly = !e.target.checked;
+                    if (e.target.checked) input.focus();
+                    window.autoCalculateSalary();
+                }
+            });
+        }
+    });
+
     if (el['salary-form']) el['salary-form'].onsubmit = async (e) => {
         e.preventDefault();
-        const rec = { id: isEditing || Math.random().toString(36).substr(2,9), month: document.getElementById('sal-month').value, date: new Date().toISOString(), baseSalary: +document.getElementById('sal-base').value, totalDays: +document.getElementById('sal-tot-days').value, workingDays: (+document.getElementById('sal-tot-days').value) - (+document.getElementById('sal-absent').value), allowance: +document.getElementById('sal-allowance').value || 0, pfDeduction: +document.getElementById('sal-pf').value || 0, eobiDeduction: +document.getElementById('sal-eobi').value || 0, incomeTax: +document.getElementById('sal-tax').value || 0, shortTimeAmount: +document.getElementById('sal-st-amount').value || 0, overTimeAmount: +document.getElementById('sal-ot-amount').value || 0, otherDeductions: +document.getElementById('sal-other-ded').value || 0, remarks: document.getElementById('sal-remarks').value, grossSalary: 0, overAllDeduction: 0, netPayable: 0 };
+        const id = isEditing || getNextNumericId();
+        const rec = { id, month: document.getElementById('sal-month').value, date: new Date().toISOString(), baseSalary: +document.getElementById('sal-base').value, totalDays: +document.getElementById('sal-tot-days').value, workingDays: (+document.getElementById('sal-tot-days').value) - (+document.getElementById('sal-absent').value), allowance: +document.getElementById('sal-allowance').value || 0, pfDeduction: +document.getElementById('sal-pf').value || 0, eobiDeduction: +document.getElementById('sal-eobi').value || 0, incomeTax: +document.getElementById('sal-tax').value || 0, shortTimeAmount: +document.getElementById('sal-st-amount').value || 0, overTimeAmount: +document.getElementById('sal-ot-amount').value || 0, withoutPay: +document.getElementById('sal-wop').value || 0, otherDeductions: +document.getElementById('sal-other-ded').value || 0, remarks: document.getElementById('sal-remarks').value, grossSalary: 0, overAllDeduction: 0, netPayable: 0 };
         rec.grossSalary = rec.baseSalary + rec.overTimeAmount + rec.allowance;
-        rec.overAllDeduction = rec.pfDeduction + rec.eobiDeduction + rec.incomeTax + rec.shortTimeAmount + rec.otherDeductions;
+        rec.overAllDeduction = rec.pfDeduction + rec.eobiDeduction + rec.incomeTax + rec.shortTimeAmount + rec.withoutPay + rec.otherDeductions;
         rec.netPayable = rec.grossSalary - rec.overAllDeduction;
-        if (isEditing) { const idx = salaryRecords.findIndex(r => r.id === isEditing); salaryRecords[idx] = rec; }
+        
+        if (isEditing) { const idx = salaryRecords.findIndex(r => r.id == isEditing); salaryRecords[idx] = rec; }
         else salaryRecords.push(rec);
+        
         localStorage.setItem('salaryRecords', JSON.stringify(salaryRecords));
         el['salary-modal'].style.display = 'none'; renderSalaryView();
+        window.showNotify('Salary Record Secured', 'success');
         await syncWithSheets('saveSalary', 'salary_records', rec);
     };
     
     if (el['fund-form']) el['fund-form'].onsubmit = async (e) => {
         e.preventDefault();
-        const rec = { id: Math.random().toString(36).substr(2,9), month: document.getElementById('fund-month').value, amount: +document.getElementById('fund-amount').value, date: new Date().toISOString(), remarks: document.getElementById('fund-remarks').value };
+        const rec = { id: getNextNumericId(), month: document.getElementById('fund-month').value, amount: +document.getElementById('fund-amount').value, date: new Date().toISOString(), remarks: document.getElementById('fund-remarks').value };
         adjustmentRecords.push(rec); localStorage.setItem('adjustmentRecords', JSON.stringify(adjustmentRecords));
         el['fund-modal'].style.display = 'none'; renderSalaryView();
+        window.showNotify('Adjustment Logged', 'success');
         await syncWithSheets('saveAdjustment', 'adjustments', rec);
     };
 }
 
-function initKeypad() { document.querySelectorAll('.pin-btn').forEach(b => b.onclick = () => { const v = b.textContent.trim(); if (v === 'C') currentPIN = ''; else if (b.id === 'enter-pin' || v === 'L') { if (currentPIN === vaultPIN) unlockVault(); else currentPIN = ''; } else if (/^\d$/.test(v)) currentPIN += v; if (el['pin-display']) el['pin-display'].innerHTML = '●'.repeat(currentPIN.length) + '○'.repeat(4-currentPIN.length); }); }
+// --- POPUPS & NOTIFICATIONS ---
+window.showNotify = function(msg, type = 'success') {
+    const container = document.getElementById('notification-container');
+    if (!container) return;
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    const iconName = type === 'success' ? 'check-circle' : (type === 'error' ? 'x-circle' : 'alert-triangle');
+    toast.innerHTML = `<div class="toast-icon"><i data-lucide="${iconName}"></i></div><div class="toast-content"><h4>${type.toUpperCase()}</h4><p>${msg}</p></div>`;
+    container.appendChild(toast);
+    if (window.lucide) lucide.createIcons();
+    setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateX(20px)'; setTimeout(() => toast.remove(), 300); }, 4000);
+};
+
+window.showConfirm = function(title, msg) {
+    return new Promise((resolve) => {
+        const modal = el['confirm-modal'];
+        if (!modal) return resolve(false);
+        el['confirm-title'].innerText = title;
+        el['confirm-msg'].innerText = msg;
+        modal.style.display = 'flex';
+        const cleanup = (val) => { modal.style.display = 'none'; el['confirm-ok'].onclick = null; el['confirm-cancel'].onclick = null; resolve(val); };
+        el['confirm-ok'].onclick = () => cleanup(true);
+        el['confirm-cancel'].onclick = () => cleanup(false);
+    });
+};
+
+function initKeypad() {
+    document.querySelectorAll('.pin-btn').forEach(b => {
+        b.onclick = () => {
+            const v = b.textContent.trim();
+            if (v === 'C') currentPIN = '';
+            else if (b.id === 'enter-pin' || v === 'L') {
+                if (currentPIN === vaultPIN) unlockVault();
+                else { currentPIN = ''; window.showNotify('ACCESS DENIED', 'error'); }
+            } else if (/^\d$/.test(v)) {
+                if (currentPIN.length < 4) currentPIN += v;
+            }
+            if (el['pin-display']) el['pin-display'].innerHTML = '●'.repeat(currentPIN.length) + '○'.repeat(4 - currentPIN.length);
+        };
+    });
+}
+
 function initIdentity() { if (el['user-handle']) el['user-handle'].innerText = localStorage.getItem('userName') || 'Mr Hassan'; }
-function unlockVault() { isLocked = false; if (el['vault-lock']) el['vault-lock'].style.display = 'none'; renderSalaryView(); }
 function updateStatusText(t) { if (el['cloud-status-text']) el['cloud-status-text'].innerText = t; }
 function initSalaryChart() {}
 function updateYearlySummary() {}
-function showNotification(m, t) { alert(m); }
 
 document.addEventListener('DOMContentLoaded', startHub);
