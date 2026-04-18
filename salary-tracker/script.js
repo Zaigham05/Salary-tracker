@@ -35,6 +35,7 @@ function startHub() {
     initDomReferences();
     initKeypad();
     initIdentity();
+    initTheme();
     setupEventListeners();
     
     if (isLocked) {
@@ -130,6 +131,10 @@ async function fetchCloudData() {
             adjustmentRecords = data.adjustments;
             localStorage.setItem('adjustmentRecords', JSON.stringify(adjustmentRecords));
         }
+        if (data.auditLog) {
+            auditLog = data.auditLog;
+            localStorage.setItem('auditLog', JSON.stringify(auditLog));
+        }
         renderSalaryView();
         updateStatusText('ONLINE');
     } catch (e) { updateStatusText('OFFLINE'); }
@@ -143,6 +148,20 @@ async function syncWithSheets(action, table, data) {
     } catch (e) { return false; }
 }
 
+// --- AUDIT SYSTEM ---
+window.addAuditEntry = async function(action, details, recordId) {
+    const entry = {
+        id: (auditLog.length ? Math.max(...auditLog.map(a => parseInt(a.id) || 0)) : 0) + 1,
+        timestamp: new Date().toISOString(),
+        action: action,
+        recordId: recordId || '-',
+        details: details
+    };
+    auditLog.push(entry);
+    localStorage.setItem('auditLog', JSON.stringify(auditLog));
+    await syncWithSheets('saveAudit', 'audit_log', entry);
+};
+
 // --- CRUD OPERATIONS (GLOBAL) ---
 window.deleteSalaryRecord = async function(id) {
     const rec = salaryRecords.find(r => r.id == id);
@@ -153,6 +172,7 @@ window.deleteSalaryRecord = async function(id) {
         localStorage.setItem('salaryRecords', JSON.stringify(salaryRecords));
         renderSalaryView();
         await syncWithSheets('deleteSalary', 'salary_records', id);
+        window.addAuditEntry('DELETE', `Archived salary record for ${formatMonth(rec.month)}`, id);
         window.showNotify('Record Archived Successfully', 'success');
     }
 };
@@ -261,7 +281,25 @@ function updateSummaryCards() {
     if (el['breakdown-avg-ot']) el['breakdown-avg-ot'].innerText = Math.round(ot/count).toLocaleString();
 }
 
+// --- THEME ENGINE ---
+function initTheme() {
+    const saved = localStorage.getItem('salaryHubTheme') || 'default';
+    window.setTheme(saved);
+}
+
+window.setTheme = function(t) {
+    document.documentElement.setAttribute('data-theme', t);
+    localStorage.setItem('salaryHubTheme', t);
+    document.querySelectorAll('.theme-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.theme === t);
+    });
+};
+
 function setupEventListeners() {
+    document.querySelectorAll('.theme-btn').forEach(btn => {
+        btn.onclick = () => window.setTheme(btn.dataset.theme);
+    });
+
     ['sal-base', 'sal-st', 'sal-ot', 'sal-tot-days', 'sal-absent'].forEach(id => { 
         const f = document.getElementById(id); 
         if (f) f.oninput = window.autoCalculateSalary; 
@@ -297,21 +335,25 @@ function setupEventListeners() {
         rec.grossSalary = rec.baseSalary + rec.overTimeAmount + rec.allowance;
         rec.overAllDeduction = rec.pfDeduction + rec.eobiDeduction + rec.incomeTax + rec.shortTimeAmount + rec.withoutPay + rec.otherDeductions;
         rec.netPayable = rec.grossSalary - rec.overAllDeduction;
+        const actionText = isEditing ? 'EDIT' : 'ADD';
         if (isEditing) { const idx = salaryRecords.findIndex(r => r.id == isEditing); salaryRecords[idx] = rec; }
         else salaryRecords.push(rec);
         localStorage.setItem('salaryRecords', JSON.stringify(salaryRecords));
         el['salary-modal'].style.display = 'none'; renderSalaryView();
         window.showNotify('Salary Record Secured', 'success');
         await syncWithSheets('saveSalary', 'salary_records', rec);
+        window.addAuditEntry(actionText, `${actionText === 'ADD' ? 'Added' : 'Updated'} record for ${formatMonth(rec.month)}. Net: ${rec.netPayable}`, id);
     };
     
     if (el['fund-form']) el['fund-form'].onsubmit = async (e) => {
         e.preventDefault();
-        const rec = { id: getNextNumericId(), month: document.getElementById('fund-month').value, amount: +document.getElementById('fund-amount').value, date: new Date().toISOString(), remarks: document.getElementById('fund-remarks').value };
+        const id = getNextNumericId();
+        const rec = { id: id, month: document.getElementById('fund-month').value, amount: +document.getElementById('fund-amount').value, date: new Date().toISOString(), remarks: document.getElementById('fund-remarks').value };
         adjustmentRecords.push(rec); localStorage.setItem('adjustmentRecords', JSON.stringify(adjustmentRecords));
         el['fund-modal'].style.display = 'none'; renderSalaryView();
         window.showNotify('Adjustment Logged', 'success');
         await syncWithSheets('saveAdjustment', 'adjustments', rec);
+        window.addAuditEntry('ADD_FUND', `Logged extra fund for ${formatMonth(rec.month)}. Amt: ${rec.amount}`, id);
     };
 }
 
@@ -368,6 +410,7 @@ window.updatePIN = function(e) {
     vaultPIN = n1;
     localStorage.setItem('vaultPIN', n1);
     window.showNotify('Encryption Key Updated Successfully', 'success');
+    window.addAuditEntry('SECURITY_UPDATE', 'Vault PIN was updated by user', '-');
     e.target.reset();
     window.showView('salary');
 };
@@ -375,7 +418,12 @@ window.updatePIN = function(e) {
 function renderAuditLog() {
     const list = document.getElementById('audit-list');
     if (!list) return;
-    list.innerHTML = auditLog.length ? [...auditLog].reverse().map(a => `<tr><td>${new Date(a.time).toLocaleString()}</td><td>${a.action}</td><td>${a.details}</td></tr>`).join('') : '<tr><td colspan="3" class="text-muted" style="text-align:center;">No activity recorded yet.</td></tr>';
+    list.innerHTML = auditLog.length ? [...auditLog].reverse().map(a => {
+        const ts = a.timestamp || a.time || new Date().toISOString();
+        const dateObj = new Date(ts);
+        const displayDate = isNaN(dateObj.getTime()) ? 'Recent' : dateObj.toLocaleString();
+        return `<tr><td>${displayDate}</td><td>${a.action}</td><td>${a.details}</td></tr>`;
+    }).join('') : '<tr><td colspan="3" class="text-muted" style="text-align:center;">No activity recorded yet.</td></tr>';
 }
 
 function initIdentity() { if (el['user-handle']) el['user-handle'].innerText = localStorage.getItem('userName') || 'Mr Hassan'; }
