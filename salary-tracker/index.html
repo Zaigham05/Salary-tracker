@@ -46,28 +46,27 @@
                     <div class="status-bar"><div id="status-fill" class="status-fill"></div></div>
                 </div>
                 
-                <nav class="nav-menu">
-                    <a href="#" class="nav-item active" onclick="showView('dashboard')">
-                        <i data-lucide="banknote"></i>
+                <nav id="nav-menu-id" class="nav-menu">
+                    <a href="#" class="nav-item active" onclick="window.showView('salary')">
+                        <i data-lucide="layout-dashboard"></i>
                         <span>Dashboard</span>
                     </a>
-                    <a href="#" class="nav-item" onclick="openSecurityModal()">
+                    <a href="#" class="nav-item" onclick="window.showView('security')">
                         <i data-lucide="shield-check"></i>
-                        <span>Security</span>
+                        <span>Vault Security</span>
                     </a>
-                    <a href="#" class="nav-item" onclick="openAuditLog()">
-                        <i data-lucide="scroll-text"></i>
+                    <a href="#" class="nav-item" onclick="window.showView('audit')">
+                        <i data-lucide="history"></i>
                         <span>Activity Log</span>
                     </a>
                     <div class="nav-divider"></div>
-                    <a href="#" class="nav-item" onclick="backupData()">
-                        <i data-lucide="archive"></i>
-                        <span>Backup Data</span>
-                    </a>
-                    <a href="#" class="nav-item" onclick="document.getElementById('import-json').click()">
+                    <a href="#" class="nav-item" onclick="window.showNotify('Cloud Sync In Progress...', 'info')">
                         <i data-lucide="refresh-cw"></i>
-                        <span>Restore Data</span>
-                        <input type="file" id="import-json" accept=".json" style="display: none;" onchange="restoreData(event)">
+                        <span>Sync Cloud</span>
+                    </a>
+                    <a href="#" class="nav-item text-danger" onclick="window.location.reload()">
+                        <i data-lucide="log-out"></i>
+                        <span>Lock System</span>
                     </a>
                 </nav>
 
@@ -120,7 +119,7 @@
                                 <i data-lucide="plus-square"></i>
                                 <span>Add Extra Fund</span>
                             </button>
-                            <button id="yearly-summary-btn" class="secondary-btn" onclick="openYearlySummary()">
+                            <button id="yearly-summary-btn" class="secondary-btn" onclick="window.openYearlySummary()">
                                 <i data-lucide="bar-chart-3"></i>
                                 <span>Yearly Summary</span>
                             </button>
@@ -132,18 +131,18 @@
                     </div>
                 </header>
 
-                <div id="salary-view" class="app-view">
+                <div id="salary-view" class="app-view active">
                     <!-- Dashboard Tabs -->
                     <div class="dashboard-tabs">
-                        <button class="dash-tab active" data-tab="analytics" onclick="switchDashboardTab('analytics')">
+                        <button class="dash-tab active" data-tab="analytics" onclick="window.switchDashboardTab('analytics')">
                             <i data-lucide="line-chart"></i>
                             <span>Performance Analytics</span>
                         </button>
-                        <button class="dash-tab" data-tab="records" onclick="switchDashboardTab('records')">
-                            <i data-lucide="table"></i>
+                        <button class="dash-tab" data-tab="records" onclick="window.switchDashboardTab('records')">
+                            <i data-lucide="layout-list"></i>
                             <span>Monthly Records</span>
                         </button>
-                        <button class="dash-tab" data-tab="funds" onclick="switchDashboardTab('funds')">
+                        <button class="dash-tab" data-tab="funds" onclick="window.switchDashboardTab('funds')">
                             <i data-lucide="award"></i>
                             <span>Extra Funds Log</span>
                         </button>
@@ -287,6 +286,70 @@
                         </div>
                     </div> <!-- End Tab Funds -->
                 </div>
+
+                <!-- Security View -->
+                <div id="security-view" class="app-view">
+                    <div class="glass-card security-view-card" style="margin-top: 1rem;">
+                        <div class="card-header">
+                            <div class="header-main">
+                                <i data-lucide="shield-check" class="text-primary"></i>
+                                <div>
+                                    <h3>Vault Security</h3>
+                                    <p>Manage your 4-digit decryption key and recovery phrase</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-body" style="padding: 2rem;">
+                            <form id="security-form" onsubmit="window.updatePIN(event)" style="max-width: 400px;">
+                                <div class="form-group">
+                                    <label>Current PIN</label>
+                                    <input type="password" id="current-pin" maxlength="4" placeholder="••••" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>New PIN</label>
+                                    <input type="password" id="new-pin" maxlength="4" placeholder="••••" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Confirm New PIN</label>
+                                    <input type="password" id="confirm-pin" maxlength="4" placeholder="••••" required>
+                                </div>
+                                <button type="submit" class="submit-btn" style="background: var(--primary); margin-top: 1rem;">
+                                    <i data-lucide="key"></i>
+                                    <span>Update Encryption Key</span>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Audit Log View -->
+                <div id="audit-view" class="app-view">
+                    <div class="glass-card audit-view-card" style="margin-top: 1rem;">
+                        <div class="card-header">
+                            <div class="header-main">
+                                <i data-lucide="history" class="text-primary"></i>
+                                <div>
+                                    <h3>System Activity Log</h3>
+                                    <p>Chronological history of all data modifications</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="audit-log-container" style="padding: 1.5rem;">
+                            <table class="audit-table">
+                                <thead>
+                                    <tr>
+                                        <th>Timestamp</th>
+                                        <th>Action</th>
+                                        <th>Details</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="audit-list">
+                                    <!-- Entries injected by JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
             </section>
         </main>
 
@@ -399,43 +462,6 @@
             </div>
         </div>
 
-        <!-- Audit Log Modal -->
-        <div id="audit-modal" class="modal-overlay">
-            <div class="modal-content glass-card" style="max-width: 700px;">
-                <div class="modal-header">
-                    <div class="header-main">
-                        <i data-lucide="scroll-text" class="text-primary"></i>
-                        <div>
-                            <h3>System Activity Log</h3>
-                            <p>Chronological history of all data modifications</p>
-                        </div>
-                    </div>
-                    <div class="header-actions" style="margin-left: auto; display: flex; gap: 1rem;">
-                        <button class="action-btn" id="export-audit-csv" title="Export Log">
-                            <i data-lucide="download"></i>
-                            <span>Export CSV</span>
-                        </button>
-                        <button class="close-btn" id="close-audit-modal">
-                            <i data-lucide="x"></i>
-                        </button>
-                    </div>
-                </div>
-                <div class="audit-log-container">
-                    <table class="audit-table">
-                        <thead>
-                            <tr>
-                                <th>Timestamp</th>
-                                <th>Action</th>
-                                <th>Details</th>
-                            </tr>
-                        </thead>
-                        <tbody id="audit-list">
-                            <!-- Entries injected by JS -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
     </div>
 
 
@@ -480,42 +506,6 @@
             </div>
         </div>
 
-        <!-- Security Modal (Change PIN) -->
-        <div id="security-modal" class="modal">
-            <div class="modal-content glass-card security-card">
-                <div class="modal-header">
-                    <h3>Vault Security</h3>
-                    <button id="close-security-modal" class="close-btn"><i data-lucide="x"></i></button>
-                </div>
-                <div class="modal-body">
-                    <p class="security-note">Update your 4-digit decryption key.</p>
-                    <form id="security-form">
-                        <div class="form-group">
-                            <label>Current PIN</label>
-                            <input type="password" id="current-pin" maxlength="4" placeholder="••••" required>
-                        </div>
-                        <div class="form-group">
-                            <label>New PIN</label>
-                            <input type="password" id="new-pin" maxlength="4" placeholder="••••" required>
-                        </div>
-                        <div class="form-group">
-                            <label>Confirm New PIN</label>
-                            <input type="password" id="confirm-pin" maxlength="4" placeholder="••••" required>
-                        </div>
-                        <div class="form-group" style="border-top: 1px solid rgba(255,255,255,0.05); padding-top: 1rem; margin-top: 0.5rem;">
-                            <label for="recovery-phrase">Recovery Phrase (Secret)</label>
-                            <input type="text" id="recovery-phrase" placeholder="e.g. My childhood pet name">
-                            <p class="input-info">Used to reset PIN if forgotten. Keep this secret!</p>
-                        </div>
-                        <p id="security-error" class="text-danger" style="font-size: 0.8rem; display: none; margin-bottom: 1rem;"></p>
-                        <button type="submit" class="primary-btn submit-btn" style="background: var(--warning);">
-                            <i data-lucide="shield-alert"></i>
-                            Update Secret Key
-                        </button>
-                    </form>
-                </div>
-            </div>
-        </div>
 
         <!-- Yearly Summary Modal -->
         <div id="yearly-summary-modal" class="modal-overlay">
